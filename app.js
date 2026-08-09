@@ -1,15 +1,19 @@
 import { db, auth } from './firebase-init.js';
 import {
-  collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, getDoc, setDoc
+  collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, getDoc, getDocs, setDoc
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
-  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile
+  onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
+  GoogleAuthProvider, signInWithPopup
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 let tareas = [];
 let dibujos = [];
+let contactos = [];
+let vinculoActivo = null;
 let indiceActual = null;
 let usuarioActual = '';
+let uidActual = '';
 let dibujando = false;
 let ctxDibujo = null;
 let modoRegistro = false;
@@ -22,9 +26,18 @@ const inputEmail = document.getElementById('input-email');
 const inputPassword = document.getElementById('input-password');
 const inputNombreRegistro = document.getElementById('input-nombre-registro');
 const btnGuardarNombre = document.getElementById('btn-guardar-nombre');
+const btnGoogle = document.getElementById('btn-google');
 const tituloAuth = document.getElementById('titulo-auth');
 const textoCambiarModo = document.getElementById('texto-cambiar-modo');
 const btnAbrirDibujo = document.getElementById('btn-abrir-dibujo');
+const inputContactoEmail = document.getElementById('input-contacto-email');
+const btnAgregarContacto = document.getElementById('btn-agregar-contacto');
+const listaContactos = document.getElementById('lista-contactos');
+const btnVincularPareja = document.getElementById('btn-vincular-pareja');
+const inputCodigoVinculo = document.getElementById('input-codigo-vinculo');
+const btnAceptarVinculo = document.getElementById('btn-aceptar-vinculo');
+const estadoVinculo = document.getElementById('estado-vinculo');
+const selectDestinatarioDibujo = document.getElementById('select-destinatario-dibujo');
 const dibujoOverlay = document.getElementById('dibujo-overlay');
 const canvasDibujo = document.getElementById('canvas-dibujo');
 const colorDibujo = document.getElementById('color-dibujo');
@@ -48,6 +61,8 @@ const modalCancelar = document.getElementById('modal-cancelar');
 const tareasRef = collection(db, 'tareas');
 const dibujosRef = collection(db, 'dibujos');
 const usuariosRef = collection(db, 'usuarios');
+const contactosRef = collection(db, 'contactos');
+const vinculosRef = collection(db, 'vinculos');
 
 // ===== AUTENTICACIÓN REAL =====
 function mostrarAuth() {
@@ -85,10 +100,58 @@ async function guardarPerfilUsuario(usuario, nombreFinal) {
     await setDoc(doc(db, 'usuarios', usuario.uid), {
       nombre: nombreFinal,
       email: usuario.email,
+      foto: usuario.photoURL || null,
       creado: serverTimestamp()
     }, { merge: true });
   } catch (error) {
     console.warn('No se pudo guardar el perfil en Firestore:', error);
+  }
+}
+
+function obtenerTareasVisibles(lista) {
+  if (!uidActual) return [];
+
+  if (vinculoActivo?.estado === 'activo') {
+    return lista.filter((tarea) => {
+      return tarea.equipoId === vinculoActivo.id || (!tarea.equipoId && tarea.uidAutor === uidActual);
+    });
+  }
+
+  return lista.filter((tarea) => !tarea.equipoId && tarea.uidAutor === uidActual);
+}
+
+async function actualizarEstadisticasEquipo() {
+  const rachaEl = document.getElementById('racha-dias');
+  const puntosEl = document.getElementById('puntos-equipo');
+
+  if (!uidActual) {
+    if (rachaEl) rachaEl.textContent = '0 días';
+    if (puntosEl) puntosEl.textContent = '0';
+    return;
+  }
+
+  try {
+    if (vinculoActivo?.estado === 'activo') {
+      const vinculoDoc = await getDoc(doc(db, 'vinculos', vinculoActivo.id));
+      if (vinculoDoc.exists()) {
+        const datos = vinculoDoc.data();
+        if (rachaEl) rachaEl.textContent = `${datos.racha || 0} días`;
+        if (puntosEl) puntosEl.textContent = datos.puntos || 0;
+        return;
+      }
+    }
+
+    const perfilDoc = await getDoc(doc(db, 'usuarios', uidActual));
+    if (perfilDoc.exists()) {
+      const datos = perfilDoc.data();
+      if (rachaEl) rachaEl.textContent = `${datos.racha || 0} días`;
+      if (puntosEl) puntosEl.textContent = datos.puntos || 0;
+    } else {
+      if (rachaEl) rachaEl.textContent = '0 días';
+      if (puntosEl) puntosEl.textContent = '0';
+    }
+  } catch (error) {
+    console.warn('No se pudieron cargar las estadísticas:', error);
   }
 }
 
@@ -105,6 +168,7 @@ async function guardarNombreUsuario() {
       const nombreFinal = nombre || email.split('@')[0];
       await guardarPerfilUsuario(credencial.user, nombreFinal);
       usuarioActual = nombreFinal;
+      uidActual = credencial.user.uid;
       ocultarAuth();
       iniciarApp();
     } else {
@@ -115,7 +179,23 @@ async function guardarNombreUsuario() {
   }
 }
 
+async function loginConGoogle() {
+  const provider = new GoogleAuthProvider();
+  try {
+    const credencial = await signInWithPopup(auth, provider);
+    const nombreFinal = credencial.user.displayName || credencial.user.email || 'Usuario';
+    await guardarPerfilUsuario(credencial.user, nombreFinal);
+    usuarioActual = nombreFinal;
+    uidActual = credencial.user.uid;
+    ocultarAuth();
+    iniciarApp();
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
 btnGuardarNombre.addEventListener('click', guardarNombreUsuario);
+btnGoogle.addEventListener('click', loginConGoogle);
 inputPassword.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') guardarNombreUsuario();
 });
@@ -126,6 +206,7 @@ textoCambiarModo.addEventListener('click', cambiarModoAuth);
 
 onAuthStateChanged(auth, async (usuario) => {
   if (usuario) {
+    uidActual = usuario.uid;
     const perfilDoc = await getDoc(doc(db, 'usuarios', usuario.uid));
     if (perfilDoc.exists()) {
       usuarioActual = perfilDoc.data().nombre || usuario.displayName || usuario.email;
@@ -141,6 +222,8 @@ onAuthStateChanged(auth, async (usuario) => {
 
 function iniciarApp() {
   document.getElementById('nombre-usuario-actual').textContent = usuarioActual;
+  document.getElementById('racha-dias').textContent = '0 días';
+  document.getElementById('puntos-equipo').textContent = '0';
 
   const q = query(tareasRef, orderBy('creada', 'asc'));
   onSnapshot(q, (snapshot) => {
@@ -152,8 +235,26 @@ function iniciarApp() {
   onSnapshot(qDibujos, (snapshot) => {
     dibujos = snapshot.docs
       .map(d => ({ id: d.id, ...d.data() }))
-      .filter(dibujo => dibujo.autor !== usuarioActual);
+      .filter(dibujo => dibujo.destinatario === uidActual);
     renderDibujos();
+  });
+
+  const qContactos = query(contactosRef, orderBy('creado', 'asc'));
+  onSnapshot(qContactos, (snapshot) => {
+    contactos = snapshot.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter(contacto => contacto.uidUsuario === uidActual);
+    renderContactos();
+    renderDestinatariosDibujo();
+  });
+
+  const qVinculos = query(vinculosRef, orderBy('creado', 'asc'));
+  onSnapshot(qVinculos, (snapshot) => {
+    const vinculos = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    const vinculo = vinculos.find(v => v.uidUsuario1 === uidActual || v.uidUsuario2 === uidActual);
+    vinculoActivo = vinculo || null;
+    renderVinculo();
+    actualizarEstadisticasEquipo();
   });
 }
 
@@ -173,12 +274,14 @@ function formatearFechaHora(fecha) {
 function renderTareas() {
   listaTareas.innerHTML = '';
 
-  if (tareas.length === 0) {
+  const tareasVisibles = obtenerTareasVisibles(tareas);
+
+  if (tareasVisibles.length === 0) {
     listaTareas.innerHTML = '<li class="tarea-vacia">No tienes pendientes por clasificar</li>';
     return;
   }
 
-  tareas.forEach((tarea) => {
+  tareasVisibles.forEach((tarea) => {
     const li = document.createElement('li');
 
     let infoTiempo = '';
@@ -237,19 +340,72 @@ function renderDibujos() {
   });
 }
 
+function renderContactos() {
+  listaContactos.innerHTML = '';
+
+  if (contactos.length === 0) {
+    listaContactos.innerHTML = '<div class="tarea-vacia">Aún no agregaste contactos</div>';
+    return;
+  }
+
+  const ul = document.createElement('ul');
+  ul.className = 'lista-contactos-items';
+
+  contactos.forEach((contacto) => {
+    const li = document.createElement('li');
+    li.className = 'contacto-item';
+    li.textContent = `${contacto.nombreContacto || contacto.emailContacto} (${contacto.emailContacto})`;
+    ul.appendChild(li);
+  });
+
+  listaContactos.appendChild(ul);
+}
+
+function renderDestinatariosDibujo() {
+  selectDestinatarioDibujo.innerHTML = '<option value="">Para mí</option>';
+
+  if (uidActual) {
+    const optionYo = document.createElement('option');
+    optionYo.value = uidActual;
+    optionYo.textContent = 'Para mí';
+    selectDestinatarioDibujo.appendChild(optionYo);
+  }
+
+  contactos.forEach((contacto) => {
+    const option = document.createElement('option');
+    option.value = contacto.uidContacto;
+    option.textContent = contacto.nombreContacto || contacto.emailContacto;
+    selectDestinatarioDibujo.appendChild(option);
+  });
+}
+
+function renderVinculo() {
+  if (!vinculoActivo) {
+    estadoVinculo.textContent = 'Sin vínculo activo';
+    return;
+  }
+
+  const estadoTexto = vinculoActivo.estado === 'activo' ? 'Vínculo activo' : 'Pendiente de confirmación';
+  estadoVinculo.textContent = `${estadoTexto} · ${vinculoActivo.codigo || ''}`.trim();
+}
+
 async function agregarTarea() {
   const texto = inputTarea.value.trim();
   if (texto === '') return;
 
-  await addDoc(tareasRef, {
+  const datos = {
     texto,
     autor: usuarioActual,
+    uidAutor: uidActual,
+    equipoId: vinculoActivo?.estado === 'activo' ? vinculoActivo.id : null,
     completada: false,
     urgencia: null,
     fecha: null,
     hora: null,
     creada: Date.now()
-  });
+  };
+
+  await addDoc(tareasRef, datos);
 
   inputTarea.value = '';
   inputTarea.focus();
@@ -362,10 +518,13 @@ function cerrarPreviewDibujo() {
 
 async function enviarDibujo() {
   const imagen = canvasDibujo.toDataURL('image/png');
+  const destinatario = selectDestinatarioDibujo.value || uidActual;
 
   await addDoc(dibujosRef, {
     imagen,
     autor: usuarioActual,
+    autorUid: uidActual,
+    destinatario,
     creado: serverTimestamp()
   });
 
@@ -397,7 +556,33 @@ listaTareas.addEventListener('click', async function(e) {
   if (accion === 'completar') {
     const nuevaCompletada = !tarea.completada;
     await updateDoc(doc(db, 'tareas', id), { completada: nuevaCompletada });
-    if (nuevaCompletada) festejarMascota();
+    if (nuevaCompletada) {
+      if (vinculoActivo?.estado === 'activo') {
+        const vinculoRef = doc(db, 'vinculos', vinculoActivo.id);
+        const vinculoDoc = await getDoc(vinculoRef);
+        if (vinculoDoc.exists()) {
+          const datos = vinculoDoc.data();
+          await updateDoc(vinculoRef, {
+            racha: (datos.racha || 0) + 1,
+            puntos: (datos.puntos || 0) + 10
+          });
+        }
+      } else {
+        const perfilRef = doc(db, 'usuarios', uidActual);
+        const perfilDoc = await getDoc(perfilRef);
+        if (perfilDoc.exists()) {
+          const datos = perfilDoc.data();
+          await updateDoc(perfilRef, {
+            racha: (datos.racha || 0) + 1,
+            puntos: (datos.puntos || 0) + 10
+          });
+        } else {
+          await setDoc(perfilRef, { racha: 1, puntos: 10 }, { merge: true });
+        }
+      }
+      actualizarEstadisticasEquipo();
+      festejarMascota();
+    }
   } else if (accion === 'urgente' || accion === 'no-urgente') {
     await updateDoc(doc(db, 'tareas', id), { urgencia: accion });
     abrirModal(id, accion);
@@ -407,6 +592,78 @@ listaTareas.addEventListener('click', async function(e) {
 btnAgregar.addEventListener('click', agregarTarea);
 inputTarea.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') agregarTarea();
+});
+
+btnAgregarContacto.addEventListener('click', async function() {
+  const email = inputContactoEmail.value.trim();
+  if (!email || !uidActual) return;
+
+  const q = query(usuariosRef);
+  const usuarios = [];
+  const resultado = await getDocs(q);
+  resultado.forEach((docu) => usuarios.push({ id: docu.id, ...docu.data() }));
+  const contacto = usuarios.find(u => u.email === email);
+
+  if (!contacto) {
+    alert('No existe un usuario con ese correo');
+    return;
+  }
+
+  const yaExiste = contactos.some(c => c.uidContacto === contacto.id || c.emailContacto === email);
+  if (yaExiste) {
+    alert('Ese contacto ya está agregado');
+    return;
+  }
+
+  await setDoc(doc(db, 'contactos', `${uidActual}_${contacto.id}`), {
+    uidUsuario: uidActual,
+    uidContacto: contacto.id,
+    nombreContacto: contacto.nombre || contacto.email,
+    emailContacto: contacto.email,
+    creado: serverTimestamp()
+  }, { merge: true });
+
+  inputContactoEmail.value = '';
+});
+
+btnVincularPareja.addEventListener('click', async function() {
+  if (!uidActual) return;
+
+  const codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
+  await addDoc(vinculosRef, {
+    codigo,
+    uidUsuario1: uidActual,
+    uidUsuario2: null,
+    estado: 'pendiente',
+    racha: 0,
+    puntos: 0,
+    creado: serverTimestamp()
+  });
+  estadoVinculo.textContent = `Código generado: ${codigo}`;
+});
+
+btnAceptarVinculo.addEventListener('click', async function() {
+  const codigo = inputCodigoVinculo.value.trim().toUpperCase();
+  if (!codigo || !uidActual) return;
+
+  const q = query(vinculosRef);
+  const resultado = await getDocs(q);
+  const vinculo = resultado.docs.find(d => d.data().codigo === codigo && d.data().estado === 'pendiente');
+
+  if (!vinculo) {
+    alert('Código no válido');
+    return;
+  }
+
+  await updateDoc(doc(db, 'vinculos', vinculo.id), {
+    uidUsuario2: uidActual,
+    estado: 'activo',
+    racha: vinculo.data().racha || 0,
+    puntos: vinculo.data().puntos || 0
+  });
+
+  inputCodigoVinculo.value = '';
+  estadoVinculo.textContent = 'Vínculo activo';
 });
 
 btnAbrirDibujo.addEventListener('click', abrirDibujo);
@@ -498,5 +755,7 @@ function pedirPermisoNotificaciones() {
 document.getElementById('btn-cerrar-sesion').addEventListener('click', async function() {
   await signOut(auth);
   usuarioActual = '';
+  uidActual = '';
+  vinculoActivo = null;
   mostrarAuth();
 });

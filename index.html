@@ -23,6 +23,7 @@
       <div class="modal-botones">
         <button id="btn-guardar-nombre" class="btn-primario">Iniciar sesión</button>
       </div>
+      <button id="btn-google" class="btn-secundario btn-google">Continuar con Google</button>
       <p class="texto-auth">
         <span id="texto-cambiar-modo">¿No tienes cuenta? Regístrate</span>
       </p>
@@ -39,6 +40,8 @@
       <img src="icon-192.png" alt="Mi mascota">
       <div class="racha">
         Racha: <strong id="racha-dias">0 días</strong>
+        <span class="separador-racha">•</span>
+        Puntos: <strong id="puntos-equipo">0</strong>
       </div>
     </div>
 
@@ -49,6 +52,23 @@
         <button id="btn-agregar">+</button>
       </div>
       <button id="btn-abrir-dibujo" class="btn-dibujo">✏️ Dibujar</button>
+      <div class="seccion-contactos">
+        <h3>Contactos</h3>
+        <div class="nueva-tarea nueva-tarea-contactos">
+          <input type="email" id="input-contacto-email" placeholder="Correo del contacto">
+          <button id="btn-agregar-contacto">+</button>
+        </div>
+        <div class="lista-contactos" id="lista-contactos"></div>
+      </div>
+      <div class="seccion-vinculos">
+        <h3>Vincular con mi pareja</h3>
+        <button id="btn-vincular-pareja" class="btn-dibujo">Generar código</button>
+        <div class="nueva-tarea nueva-tarea-contactos">
+          <input type="text" id="input-codigo-vinculo" placeholder="Código de pareja">
+          <button id="btn-aceptar-vinculo">✓</button>
+        </div>
+        <div class="estado-vinculo" id="estado-vinculo">Sin vínculo activo</div>
+      </div>
       <ul class="lista-tareas" id="lista-tareas">
         <li class="tarea-vacia">No tienes pendientes por clasificar</li>
       </ul>
@@ -84,6 +104,7 @@
         <div class="dibujo-opciones">
           <input type="color" id="color-dibujo" value="#2E6FBF">
           <input type="range" id="grosor-dibujo" min="1" max="16" value="4">
+          <select id="select-destinatario-dibujo" class="select-destinatario"></select>
         </div>
         <button id="dibujo-enviar" class="btn-primario">Enviar</button>
       </div>
