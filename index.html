@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mi App Personal</title>
+
+  <link rel="manifest" href="manifest.json">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="MiApp">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app">
+
+    <div class="mascota-card">
+      <img src="icon-192.png" alt="Mi mascota">
+      <div class="racha">
+        Racha: <strong id="racha-dias">0 días</strong>
+      </div>
+    </div>
+
+    <div class="bandeja">
+      <h2>Bandeja de entrada</h2>
+      <div class="nueva-tarea">
+        <input type="text" id="input-tarea" placeholder="¿Qué tienes pendiente?">
+        <button id="btn-agregar">+</button>
+      </div>
+      <ul class="lista-tareas" id="lista-tareas">
+        <li class="tarea-vacia">No tienes pendientes por clasificar</li>
+      </ul>
+    </div>
+
+  </div>
+<div class="modal-overlay" id="modal-overlay">
+  <div class="modal">
+    <h3 id="modal-titulo">¿Cuándo quieres hacerlo?</h3>
+    <div id="campo-fecha">
+      <label>Día</label>
+      <input type="date" id="modal-fecha">
+    </div>
+    <label>Hora</label>
+    <input type="time" id="modal-hora">
+    <div class="modal-botones">
+      <button id="modal-cancelar" class="btn-secundario">Cancelar</button>
+      <button id="modal-guardar" class="btn-primario">Guardar</button>
+    </div>
+  </div>
+</div>
+<div class="celebracion-overlay" id="celebracion-overlay">
+  <div class="confeti-contenedor" id="confeti-contenedor"></div>
+  <div class="celebracion-contenido">
+    <img src="icon-192.png" alt="Mascota feliz" class="celebracion-mascota" id="celebracion-mascota">
+    <h2 id="celebracion-titulo">¡Lo lograste!</h2>
+    <p id="celebracion-mensaje">Completaste tu primera tarea 🎉</p>
+  </div>
+</div>
+  <script src="app.js"></script>
+<script>
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('service-worker.js');
+  }
+</script>
+</body>
+</html>
