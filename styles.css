@@ -216,6 +216,29 @@ body {
   color: #2B3A4A;
 }
 
+.perfil-foto {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 10px;
+  border: 2px solid #C9DDF2;
+}
+
+.perfil-input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #C9DDF2;
+  border-radius: 10px;
+  margin-top: 8px;
+  background: white;
+}
+
+.perfil-bio {
+  min-height: 80px;
+  resize: vertical;
+}
+
 .perfil-stats {
   margin-top: 8px;
 }
@@ -263,6 +286,15 @@ body {
   border-radius: 14px;
   padding: 12px;
   margin-bottom: 10px;
+}
+
+.reto-card.rechazado {
+  border-color: #F28B82;
+  background: #FFF4F4;
+}
+
+.reto-card.rechazado .reto-estado {
+  color: #D93025;
 }
 
 .reto-header {
@@ -507,6 +539,40 @@ textarea {
   overflow: hidden;
 }
 
+.celebracion-nube-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
+  background: rgba(27, 74, 140, 0.35);
+  align-items: center;
+  justify-content: center;
+  z-index: 210;
+  overflow: hidden;
+}
+
+.celebracion-nube-overlay.activo {
+  display: flex;
+}
+
+.nube-celebracion {
+  background: white;
+  color: #1B4A8C;
+  padding: 16px 18px;
+  border-radius: 999px;
+  box-shadow: 0 10px 24px rgba(0,0,0,0.16);
+  animation: subirNube 1.8s ease forwards;
+  font-weight: 700;
+}
+
+@keyframes subirNube {
+  0% { transform: translateY(20px) scale(0.9); opacity: 0; }
+  20% { transform: translateY(0) scale(1); opacity: 1; }
+  100% { transform: translateY(-80px) scale(1.02); opacity: 0; }
+}
+
 .celebracion-overlay.activo {
   display: flex;
 }
@@ -664,6 +730,8 @@ textarea {
   border-radius: 8px;
   color: #1B4A8C;
   background: white;
+  width: 100%;
+  min-height: 44px;
 }
 
 .seccion-dibujos h3 {
@@ -716,6 +784,7 @@ textarea {
   justify-content: center;
   z-index: 350;
   padding: 12px;
+  min-height: 100dvh;
 }
 
 .dibujo-overlay.activo {
@@ -742,14 +811,16 @@ textarea {
   padding: 12px;
   background: #F7FAFD;
   border-bottom: 1px solid #EAF2FB;
+  flex-wrap: wrap;
 }
 
 .dibujo-opciones {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex: 1;
+  flex: 1 1 220px;
   justify-content: center;
+  flex-wrap: wrap;
 }
 
 .dibujo-opciones input[type="color"] {

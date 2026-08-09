@@ -23,6 +23,7 @@ let chatUnsubscribe = null;
 let chatParejaUnsubscribe = null;
 let retosParejaUnsubscribe = null;
 let retosPareja = [];
+let ultimoMensajePareja = null;
 
 const inputTarea = document.getElementById('input-tarea');
 const btnAgregar = document.getElementById('btn-agregar');
@@ -87,6 +88,10 @@ const selectCategoriaReto = document.getElementById('select-categoria-reto');
 const btnEnviarReto = document.getElementById('btn-enviar-reto');
 const listaRetosRecibidos = document.getElementById('lista-retos-recibidos');
 const listaRetosEnviados = document.getElementById('lista-retos-enviados');
+const perfilBioInput = document.getElementById('perfil-bio');
+const perfilGuardarBtn = document.getElementById('btn-guardar-perfil');
+const perfilFotoImg = document.getElementById('perfil-foto');
+const perfilNombrePareja = document.getElementById('perfil-nombre-pareja');
 const modalFecha = document.getElementById('modal-fecha');
 const modalHora = document.getElementById('modal-hora');
 const modalGuardar = document.getElementById('modal-guardar');
@@ -145,10 +150,42 @@ async function guardarPerfilUsuario(usuario, nombreFinal, telefono = null) {
       email: usuario.email,
       telefono: telefono || null,
       foto: usuario.photoURL || null,
+      bio: '',
       creado: serverTimestamp()
     }, { merge: true });
   } catch (error) {
     console.warn('No se pudo guardar el perfil en Firestore:', error);
+  }
+}
+
+async function guardarPerfilEditable() {
+  if (!uidActual) return;
+  const bio = perfilBioInput?.value?.trim() || '';
+  const perfilRef = doc(db, 'usuarios', uidActual);
+  await setDoc(perfilRef, { bio }, { merge: true });
+  alert('Perfil guardado');
+}
+
+async function cargarPerfilEditable() {
+  if (!uidActual) return;
+  const perfilDoc = await getDoc(doc(db, 'usuarios', uidActual));
+  if (perfilDoc.exists()) {
+    const datos = perfilDoc.data();
+    if (perfilBioInput) perfilBioInput.value = datos.bio || '';
+    if (perfilFotoImg) perfilFotoImg.src = datos.foto || 'icon-192.png';
+  }
+
+  if (vinculoActivo?.estado === 'activo') {
+    const otroUid = vinculoActivo.uidUsuario1 === uidActual ? vinculoActivo.uidUsuario2 : vinculoActivo.uidUsuario1;
+    if (otroUid) {
+      const otroDoc = await getDoc(doc(db, 'usuarios', otroUid));
+      if (otroDoc.exists()) {
+        const otroDatos = otroDoc.data();
+        if (perfilNombrePareja) perfilNombrePareja.textContent = `Pareja: ${otroDatos.nombre || 'Tu pareja'}`;
+      }
+    }
+  } else if (perfilNombrePareja) {
+    perfilNombrePareja.textContent = 'Sin vínculo';
   }
 }
 
@@ -164,17 +201,44 @@ function obtenerTareasVisibles(lista) {
   return lista.filter((tarea) => !tarea.equipoId && tarea.uidAutor === uidActual);
 }
 
+async function calcularRachaRetos(equipoId) {
+  const vinculoRef = doc(db, 'vinculos', equipoId);
+  const vinculoDoc = await getDoc(vinculoRef);
+  if (!vinculoDoc.exists()) return 0;
+
+  const datos = vinculoDoc.data();
+  const ultimoMensaje = datos.ultimoMensaje?.toDate ? datos.ultimoMensaje.toDate() : null;
+  const ahora = new Date();
+
+  if (!ultimoMensaje) {
+    await updateDoc(vinculoRef, { rachaRetos: 0 });
+    return 0;
+  }
+
+  const diffHoras = (ahora - ultimoMensaje) / (1000 * 60 * 60);
+  if (diffHoras > 24) {
+    await updateDoc(vinculoRef, { rachaRetos: 0 });
+    return 0;
+  }
+
+  const nuevaRacha = (datos.rachaRetos || 0) + 1;
+  await updateDoc(vinculoRef, { rachaRetos: nuevaRacha });
+  return nuevaRacha;
+}
+
 async function actualizarEstadisticasEquipo() {
   const rachaEl = document.getElementById('racha-dias');
   const puntosEl = document.getElementById('puntos-equipo');
   const rachaPerfilEl = document.getElementById('racha-dias-perfil');
   const puntosPerfilEl = document.getElementById('puntos-equipo-perfil');
+  const rachaRetosEl = document.getElementById('racha-retos');
 
-  const actualizarVista = (rachaTexto, puntosTexto) => {
+  const actualizarVista = (rachaTexto, puntosTexto, rachaRetosTexto = '0') => {
     if (rachaEl) rachaEl.textContent = rachaTexto;
     if (puntosEl) puntosEl.textContent = puntosTexto;
     if (rachaPerfilEl) rachaPerfilEl.textContent = rachaTexto;
     if (puntosPerfilEl) puntosPerfilEl.textContent = puntosTexto;
+    if (rachaRetosEl) rachaRetosEl.textContent = rachaRetosTexto;
   };
 
   if (!uidActual) {
@@ -187,7 +251,7 @@ async function actualizarEstadisticasEquipo() {
       const vinculoDoc = await getDoc(doc(db, 'vinculos', vinculoActivo.id));
       if (vinculoDoc.exists()) {
         const datos = vinculoDoc.data();
-        actualizarVista(`${datos.racha || 0} días`, datos.puntos || 0);
+        actualizarVista(`${datos.racha || 0} días`, datos.puntos || 0, `${datos.rachaRetos || 0} días`);
         return;
       }
     }
@@ -195,9 +259,9 @@ async function actualizarEstadisticasEquipo() {
     const perfilDoc = await getDoc(doc(db, 'usuarios', uidActual));
     if (perfilDoc.exists()) {
       const datos = perfilDoc.data();
-      actualizarVista(`${datos.racha || 0} días`, datos.puntos || 0);
+      actualizarVista(`${datos.racha || 0} días`, datos.puntos || 0, '0 días');
     } else {
-      actualizarVista('0 días', '0');
+      actualizarVista('0 días', '0', '0 días');
     }
   } catch (error) {
     console.warn('No se pudieron cargar las estadísticas:', error);
@@ -238,6 +302,15 @@ async function guardarNombreUsuario() {
 function mostrarRecuperacion() {
   recuperacionContainer.style.display = 'block';
   inputEmailRecuperacion.value = inputEmail.value.trim();
+}
+
+function mostrarCelebracionReto(puntos) {
+  const overlay = document.getElementById('celebracion-nube-overlay');
+  const nube = document.getElementById('nube-celebracion');
+  if (!overlay || !nube) return;
+  nube.textContent = `¡Reto cumplido! +${puntos} puntos`;
+  overlay.classList.add('activo');
+  setTimeout(() => overlay.classList.remove('activo'), 1800);
 }
 
 function ocultarRecuperacion() {
@@ -347,6 +420,7 @@ btnGoogle.addEventListener('click', loginConGoogle);
 linkRecuperarPassword.addEventListener('click', recuperarPassword);
 btnEnviarCodigoRecuperacion.addEventListener('click', enviarCodigoRecuperacion);
 btnConfirmarRecuperacion.addEventListener('click', confirmarRecuperacion);
+perfilGuardarBtn.addEventListener('click', guardarPerfilEditable);
 inputPassword.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') guardarNombreUsuario();
 });
@@ -413,6 +487,7 @@ function iniciarApp() {
     vinculoActivo = vinculo || null;
     renderVinculo();
     actualizarEstadisticasEquipo();
+    cargarPerfilEditable();
 
     if (chatParejaUnsubscribe) chatParejaUnsubscribe();
     if (retosParejaUnsubscribe) retosParejaUnsubscribe();
@@ -472,9 +547,9 @@ function renderTareas() {
 
     let infoTiempo = '';
     if (tarea.urgencia === 'urgente' && tarea.hora) {
-      infoTiempo = `<div style="font-size:12px; color:#5B7A9D; margin-top:4px;">🕐 Hoy a las ${tarea.hora}</div>`;
+      infoTiempo = `<div style="font-size:12px; color:#5B7A9D; margin-top:4px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="8"/><path d="M12 7v5l3 2"/></svg>Hoy a las ${tarea.hora}</div>`;
     } else if (tarea.urgencia === 'no-urgente' && tarea.fecha) {
-      infoTiempo = `<div style="font-size:12px; color:#5B7A9D; margin-top:4px;">📅 ${formatearFecha(tarea.fecha)}${tarea.hora ? ' — ' + tarea.hora : ''}</div>`;
+      infoTiempo = `<div style="font-size:12px; color:#5B7A9D; margin-top:4px;"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle; margin-right:4px;"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 9h16"/><path d="M8 3v4"/><path d="M16 3v4"/></svg>${formatearFecha(tarea.fecha)}${tarea.hora ? ' — ' + tarea.hora : ''}</div>`;
     }
 
     li.innerHTML = `
@@ -487,7 +562,7 @@ function renderTareas() {
         </div>
         <div class="grupo-etiquetas">
           <div class="fila">
-            <span class="etiqueta ${tarea.urgencia === 'urgente' ? 'activa-urgente' : ''}" data-id="${tarea.id}" data-accion="urgente">🔴 Urgente (Hoy)</span>
+            <span class="etiqueta ${tarea.urgencia === 'urgente' ? 'activa-urgente' : ''}" data-id="${tarea.id}" data-accion="urgente"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle; margin-right:4px;"><circle cx="12" cy="12" r="7"/></svg>Urgente (Hoy)</span>
             <span class="etiqueta ${tarea.urgencia === 'no-urgente' ? 'activa-normal' : ''}" data-id="${tarea.id}" data-accion="no-urgente">No urgente (Semana)</span>
           </div>
         </div>
@@ -696,7 +771,7 @@ function renderChatPareja() {
   if (!chatParejaMensajes) return;
   chatParejaMensajes.innerHTML = '';
 
-  if (!vinculoActivo?.estado === 'activo' || !uidActual) {
+  if (vinculoActivo?.estado !== 'activo' || !uidActual) {
     chatParejaMensajes.innerHTML = '<div class="tarea-vacia">No hay mensajes aún</div>';
     return;
   }
@@ -744,7 +819,7 @@ function renderRetosPareja() {
 
 function crearTarjetaReto(reto, tipo) {
   const tarjeta = document.createElement('div');
-  tarjeta.className = 'reto-card';
+  tarjeta.className = `reto-card${reto.estado === 'rechazado' ? ' rechazado' : ''}`;
 
   const color = reto.categoria === 'Romántico' ? '#FF7AA2' : reto.categoria === 'Atrevido' ? '#8E6CE8' : '#2E6FBF';
   tarjeta.innerHTML = `
@@ -813,6 +888,7 @@ async function completarReto(reto) {
       puntos: (datos.puntos || 0) + 20,
       racha: (datos.racha || 0) + 1
     });
+    mostrarCelebracionReto(20);
     actualizarEstadisticasEquipo();
   }
 }
@@ -826,6 +902,13 @@ async function enviarMensajePareja() {
     texto,
     creado: serverTimestamp()
   });
+  if (vinculoActivo?.id) {
+    const vinculoRef = doc(db, 'vinculos', vinculoActivo.id);
+    await updateDoc(vinculoRef, {
+      ultimoMensaje: serverTimestamp(),
+      rachaRetos: await calcularRachaRetos(vinculoActivo.id)
+    });
+  }
   inputMensajePareja.value = '';
 }
 
@@ -1246,17 +1329,17 @@ function festejarMascota() {
 
   if (totalCompletadas === 1) {
     titulo.textContent = '¡Lo lograste!';
-    mensaje.textContent = 'Completaste tu primera tarea 🎉';
+    mensaje.textContent = 'Completaste tu primera tarea';
   } else if (totalCompletadas % 5 === 0) {
     titulo.textContent = '¡Imparable!';
     mensaje.textContent = `Ya llevas ${totalCompletadas} tareas completadas 🔥`;
   } else {
     const frases = [
-      '¡Excelente trabajo! 🎉',
-      '¡Sigue así! 💪',
-      '¡Una menos, vas muy bien! ✨',
-      '¡Tu mascota está orgullosa! 🐾',
-      '¡Eres una bestia! 🚀'
+      '¡Excelente trabajo!',
+      '¡Sigue así!',
+      '¡Una menos, vas muy bien!',
+      '¡Tu mascota está orgullosa!',
+      '¡Eres una bestia!'
     ];
     titulo.textContent = '¡Bien hecho!';
     mensaje.textContent = frases[Math.floor(Math.random() * frases.length)];
