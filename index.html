@@ -20,7 +20,7 @@
       <input type="email" id="input-email" placeholder="Correo electrónico">
       <input type="password" id="input-password" placeholder="Contraseña">
       <input type="text" id="input-nombre-registro" placeholder="Nombre para mostrar" style="display:none; margin-top:10px;">
-      <input type="tel" id="input-telefono-registro" placeholder="Teléfono (opcional)" style="display:none; margin-top:10px;">
+      <input type="tel" id="input-telefono-registro" placeholder="Teléfono" style="display:none; margin-top:10px;" required>
       <div class="modal-botones">
         <button id="btn-guardar-nombre" class="btn-primario">Iniciar sesión</button>
       </div>
@@ -58,7 +58,7 @@
       <button class="nav-item activo" data-tab="tareas"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16"/><path d="M7 12h10"/><path d="M9 17h6"/></svg> Tareas</button>
       <button class="nav-item" data-tab="dibujos"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 19V8.5A2.5 2.5 0 0 1 7.5 6H16"/><path d="M8 19h11V9.5A2.5 2.5 0 0 0 16.5 7H8"/><path d="M10 11h6"/><path d="M10 15h4"/></svg> Dibujos</button>
       <button class="nav-item" data-tab="contactos"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M16 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/><path d="M4 18a4 4 0 0 1 8 0"/><path d="M12 18a4 4 0 0 1 8 0"/></svg> Contactos</button>
-      <button class="nav-item" data-tab="pareja"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-6-4.35-6-9a4 4 0 0 1 7-2.45A4 4 0 0 1 18 11c0 4.65-6 9-6 9Z"/></svg> Pareja</button>
+      <button class="nav-item" data-tab="pareja"><span class="nav-badge" id="nav-badge-pareja" style="display:none"></span><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 20s-6-4.35-6-9a4 4 0 0 1 7-2.45A4 4 0 0 1 18 11c0 4.65-6 9-6 9Z"/></svg> Pareja</button>
       <button class="nav-item" data-tab="perfil"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M5 19a7 7 0 0 1 14 0"/></svg> Perfil</button>
     </nav>
 
@@ -92,8 +92,7 @@
         <div class="seccion-contactos">
           <h3>Agregar contacto</h3>
           <div class="nueva-tarea nueva-tarea-contactos">
-            <input type="email" id="input-contacto-email" placeholder="Correo del contacto">
-            <input type="tel" id="input-contacto-telefono" placeholder="Teléfono del contacto">
+            <input type="tel" id="input-contacto-telefono" placeholder="Teléfono del contacto" autocomplete="tel">
             <button id="btn-agregar-contacto">+</button>
           </div>
         </div>
@@ -148,10 +147,19 @@
         <h2><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" style="vertical-align:middle; margin-right:6px;"><circle cx="12" cy="8" r="4"/><path d="M5 19a7 7 0 0 1 14 0"/></svg>Perfil</h2>
         <div class="perfil-card">
           <img id="perfil-foto" class="perfil-foto" src="icon-192.png" alt="Foto de perfil">
+          <div class="perfil-acciones" style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+            <button id="btn-editar-perfil" class="btn-secundario">Editar perfil</button>
+            <button id="btn-guardar-perfil" class="btn-primario" style="display:none;">Guardar cambios</button>
+          </div>
           <p><strong id="nombre-usuario-actual-perfil">...</strong></p>
           <p id="perfil-nombre-pareja">Sin vínculo</p>
-          <textarea id="perfil-bio" class="perfil-input perfil-bio" placeholder="Escribe una breve descripción sobre ti"></textarea>
-          <button id="btn-guardar-perfil" class="btn-primario" style="margin-top:10px;">Guardar perfil</button>
+          <label class="perfil-label" for="perfil-nombre">Nombre</label>
+          <input id="perfil-nombre" class="perfil-input" type="text" placeholder="Tu nombre" readonly>
+          <label class="perfil-label" for="perfil-telefono">Teléfono</label>
+          <input id="perfil-telefono" class="perfil-input" type="tel" placeholder="Tu teléfono" readonly>
+          <label class="perfil-label" for="perfil-bio">Bio</label>
+          <textarea id="perfil-bio" class="perfil-input perfil-bio" placeholder="Escribe una breve descripción sobre ti" readonly></textarea>
+          <div id="perfil-confirmacion" class="perfil-confirmacion" style="display:none;"></div>
           <div class="racha perfil-stats">
             Racha: <strong id="racha-dias-perfil">0 días</strong>
             <span class="separador-racha">•</span>

@@ -24,6 +24,9 @@ let chatParejaUnsubscribe = null;
 let retosParejaUnsubscribe = null;
 let retosPareja = [];
 let ultimoMensajePareja = null;
+let modoEdicionPerfil = false;
+let mensajesParejaSinLeer = 0;
+let ultimoMensajeParejaVisto = null;
 
 const inputTarea = document.getElementById('input-tarea');
 const btnAgregar = document.getElementById('btn-agregar');
@@ -45,7 +48,6 @@ const tituloAuth = document.getElementById('titulo-auth');
 const textoCambiarModo = document.getElementById('texto-cambiar-modo');
 const linkRecuperarPassword = document.getElementById('link-recuperar-password');
 const btnAbrirDibujo = document.getElementById('btn-abrir-dibujo');
-const inputContactoEmail = document.getElementById('input-contacto-email');
 const inputContactoTelefono = document.getElementById('input-contacto-telefono');
 const btnAgregarContacto = document.getElementById('btn-agregar-contacto');
 const listaContactos = document.getElementById('lista-contactos');
@@ -89,9 +91,14 @@ const btnEnviarReto = document.getElementById('btn-enviar-reto');
 const listaRetosRecibidos = document.getElementById('lista-retos-recibidos');
 const listaRetosEnviados = document.getElementById('lista-retos-enviados');
 const perfilBioInput = document.getElementById('perfil-bio');
+const perfilNombreInput = document.getElementById('perfil-nombre');
+const perfilTelefonoInput = document.getElementById('perfil-telefono');
 const perfilGuardarBtn = document.getElementById('btn-guardar-perfil');
+const perfilEditarBtn = document.getElementById('btn-editar-perfil');
 const perfilFotoImg = document.getElementById('perfil-foto');
 const perfilNombrePareja = document.getElementById('perfil-nombre-pareja');
+const perfilConfirmacion = document.getElementById('perfil-confirmacion');
+const navBadgePareja = document.getElementById('nav-badge-pareja');
 const modalFecha = document.getElementById('modal-fecha');
 const modalHora = document.getElementById('modal-hora');
 const modalGuardar = document.getElementById('modal-guardar');
@@ -158,12 +165,62 @@ async function guardarPerfilUsuario(usuario, nombreFinal, telefono = null) {
   }
 }
 
+function activarModoEdicionPerfil() {
+  modoEdicionPerfil = true;
+  perfilGuardarBtn.style.display = 'inline-block';
+  perfilNombreInput.readOnly = false;
+  perfilTelefonoInput.readOnly = false;
+  perfilBioInput.readOnly = false;
+  perfilNombreInput.focus();
+}
+
+function desactivarModoEdicionPerfil() {
+  modoEdicionPerfil = false;
+  perfilGuardarBtn.style.display = 'none';
+  perfilNombreInput.readOnly = true;
+  perfilTelefonoInput.readOnly = true;
+  perfilBioInput.readOnly = true;
+}
+
+function mostrarConfirmacionPerfil(mensaje) {
+  if (!perfilConfirmacion) return;
+  perfilConfirmacion.textContent = mensaje;
+  perfilConfirmacion.style.display = 'block';
+  clearTimeout(mostrarConfirmacionPerfil.timeoutId);
+  mostrarConfirmacionPerfil.timeoutId = setTimeout(() => {
+    perfilConfirmacion.style.display = 'none';
+  }, 1600);
+}
+
 async function guardarPerfilEditable() {
   if (!uidActual) return;
+  const nombre = perfilNombreInput?.value?.trim() || '';
+  const telefono = perfilTelefonoInput?.value?.trim() || '';
   const bio = perfilBioInput?.value?.trim() || '';
   const perfilRef = doc(db, 'usuarios', uidActual);
-  await setDoc(perfilRef, { bio }, { merge: true });
-  alert('Perfil guardado');
+
+  try {
+    await updateDoc(perfilRef, {
+      nombre,
+      telefono,
+      bio
+    });
+
+    const usuarioAuth = auth.currentUser;
+    if (usuarioAuth && nombre && nombre !== usuarioActual) {
+      await updateProfile(usuarioAuth, { displayName: nombre });
+    }
+
+    usuarioActual = nombre || usuarioActual;
+    document.getElementById('nombre-usuario-actual').textContent = usuarioActual;
+    document.getElementById('nombre-usuario-actual-perfil').textContent = usuarioActual || 'Tu perfil';
+    desactivarModoEdicionPerfil();
+    mostrarConfirmacionPerfil('Perfil actualizado');
+    await cargarPerfilEditable();
+  } catch (error) {
+    console.warn('No se pudo guardar el perfil:', error);
+    alert('No se pudo guardar el perfil');
+  }
 }
 
 async function cargarPerfilEditable() {
@@ -172,6 +229,8 @@ async function cargarPerfilEditable() {
   if (perfilDoc.exists()) {
     const datos = perfilDoc.data();
     if (perfilBioInput) perfilBioInput.value = datos.bio || '';
+    if (perfilNombreInput) perfilNombreInput.value = datos.nombre || usuarioActual || '';
+    if (perfilTelefonoInput) perfilTelefonoInput.value = datos.telefono || '';
     if (perfilFotoImg) perfilFotoImg.src = datos.foto || 'icon-192.png';
   }
 
@@ -275,6 +334,11 @@ async function guardarNombreUsuario() {
   const telefono = inputTelefonoRegistro.value.trim();
 
   if (email === '' || password === '') return;
+
+  if (modoRegistro && !telefono) {
+    alert('Ingresa tu teléfono para crear la cuenta');
+    return;
+  }
 
   if (!esEmailValido(email)) {
     alert('Ingresa un correo electrónico válido');
@@ -421,6 +485,7 @@ linkRecuperarPassword.addEventListener('click', recuperarPassword);
 btnEnviarCodigoRecuperacion.addEventListener('click', enviarCodigoRecuperacion);
 btnConfirmarRecuperacion.addEventListener('click', confirmarRecuperacion);
 perfilGuardarBtn.addEventListener('click', guardarPerfilEditable);
+perfilEditarBtn.addEventListener('click', activarModoEdicionPerfil);
 inputPassword.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') guardarNombreUsuario();
 });
@@ -495,9 +560,19 @@ function iniciarApp() {
     if (vinculoActivo?.estado === 'activo') {
       const qMensajesPareja = query(mensajesParejaRef, orderBy('creado', 'asc'));
       chatParejaUnsubscribe = onSnapshot(qMensajesPareja, (snapshotMensajes) => {
-        window.__mensajesPareja = snapshotMensajes.docs
+        const mensajes = snapshotMensajes.docs
           .map((docu) => ({ id: docu.id, ...docu.data() }))
           .filter((m) => m.equipoId === vinculoActivo.id);
+        window.__mensajesPareja = mensajes;
+        const mensajesNoLeidos = mensajes.filter((m) => m.de !== uidActual && m.creado?.seconds && (!ultimoMensajeParejaVisto || m.creado.seconds > ultimoMensajeParejaVisto));
+        if (mensajesNoLeidos.length > 0 && document.activeElement?.id !== 'input-mensaje-pareja') {
+          mensajesParejaSinLeer = mensajesNoLeidos.length;
+          actualizarIndicadorChat();
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const autor = mensajesNoLeidos[mensajesNoLeidos.length - 1].de === uidActual ? 'Tú' : 'Tu pareja';
+            mostrarNotificacionLocal(`Nuevo mensaje de ${autor}`, { body: mensajesNoLeidos[mensajesNoLeidos.length - 1].texto.slice(0, 80), tag: 'chat-pareja' });
+          }
+        }
         renderChatPareja();
       });
 
@@ -625,7 +700,9 @@ function renderContactos() {
       li.className = 'contacto-item';
       const contenido = document.createElement('div');
       contenido.className = 'contacto-info';
-      contenido.textContent = `${contacto.nombreContacto || contacto.emailContacto || 'Contacto'}${contacto.emailContacto ? ` · ${contacto.emailContacto}` : ''}${contacto.telefonoContacto ? ` · ${contacto.telefonoContacto}` : ''}`;
+      const nombreContacto = contacto.nombreContacto || 'Contacto';
+      const telefonoContacto = contacto.telefonoContacto || '';
+      contenido.textContent = telefonoContacto ? `${nombreContacto} · ${telefonoContacto}` : nombreContacto;
       li.appendChild(contenido);
 
       if (contacto.estado === 'aceptado') {
@@ -762,9 +839,22 @@ function renderDestinatariosDibujo() {
     if (!contacto.uidContacto) return;
     const option = document.createElement('option');
     option.value = contacto.uidContacto;
-    option.textContent = contacto.nombreContacto || contacto.emailContacto || 'Contacto';
+    const nombreContacto = contacto.nombreContacto || 'Contacto';
+    const telefonoContacto = contacto.telefonoContacto || '';
+    option.textContent = telefonoContacto ? `${nombreContacto} · ${telefonoContacto}` : nombreContacto;
     selectDestinatarioDibujo.appendChild(option);
   });
+}
+
+function actualizarIndicadorChat() {
+  if (!navBadgePareja) return;
+  if (mensajesParejaSinLeer > 0 && document.querySelector('.nav-item[data-tab="pareja"]') && !document.querySelector('.nav-item[data-tab="pareja"]').classList.contains('activo')) {
+    navBadgePareja.textContent = mensajesParejaSinLeer > 9 ? '9+' : mensajesParejaSinLeer;
+    navBadgePareja.style.display = 'inline-flex';
+  } else {
+    navBadgePareja.textContent = '';
+    navBadgePareja.style.display = 'none';
+  }
 }
 
 function renderChatPareja() {
@@ -792,6 +882,14 @@ function renderChatPareja() {
     burbuja.textContent = mensaje.texto;
     contenedor.appendChild(burbuja);
   });
+
+  if (mensajes.length > 0 && mensajes[mensajes.length - 1]?.de !== uidActual) {
+    const ultimo = mensajes[mensajes.length - 1];
+    if (ultimo?.creado?.seconds && ultimo.creado.seconds !== ultimoMensajeParejaVisto) {
+      mensajesParejaSinLeer = 0;
+      actualizarIndicadorChat();
+    }
+  }
 
   chatParejaMensajes.appendChild(contenedor);
 }
@@ -902,6 +1000,8 @@ async function enviarMensajePareja() {
     texto,
     creado: serverTimestamp()
   });
+  mensajesParejaSinLeer = 0;
+  actualizarIndicadorChat();
   if (vinculoActivo?.id) {
     const vinculoRef = doc(db, 'vinculos', vinculoActivo.id);
     await updateDoc(vinculoRef, {
@@ -1175,10 +1275,9 @@ inputTarea.addEventListener('keypress', function(e) {
 });
 
 btnAgregarContacto.addEventListener('click', async function() {
-  const email = inputContactoEmail.value.trim();
   const telefono = inputContactoTelefono.value.trim();
-  if ((!email && !telefono) || !uidActual) {
-    alert('Ingresa un correo o un teléfono para agregar un contacto');
+  if (!telefono || !uidActual) {
+    alert('Ingresa un teléfono para agregar un contacto');
     return;
   }
 
@@ -1187,20 +1286,18 @@ btnAgregarContacto.addEventListener('click', async function() {
   const resultado = await getDocs(q);
   resultado.forEach((docu) => usuarios.push({ id: docu.id, ...docu.data() }));
 
-  let contacto = null;
-  if (email) {
-    contacto = usuarios.find(u => u.email === email);
-  }
-  if (!contacto && telefono) {
-    contacto = usuarios.find(u => u.telefono === telefono);
-  }
+  const telefonoNormalizado = telefono.replace(/\D/g, '');
+  const contacto = usuarios.find((u) => {
+    const telefonoUsuario = `${u.telefono || ''}`.replace(/\D/g, '');
+    return telefonoUsuario === telefonoNormalizado;
+  });
 
   if (!contacto) {
-    alert('No existe un usuario con ese correo o teléfono');
+    alert('No existe un usuario con ese número');
     return;
   }
 
-  const yaExiste = contactos.some(c => c.uidContacto === contacto.id || c.emailContacto === email || c.telefonoContacto === telefono);
+  const yaExiste = contactos.some((c) => c.uidContacto === contacto.id || c.telefonoContacto === telefono);
   if (yaExiste) {
     alert('Ese contacto ya está en proceso o ya fue agregado');
     return;
@@ -1226,7 +1323,6 @@ btnAgregarContacto.addEventListener('click', async function() {
     creado: serverTimestamp()
   }, { merge: true });
 
-  inputContactoEmail.value = '';
   inputContactoTelefono.value = '';
 });
 
@@ -1373,6 +1469,16 @@ function pedirPermisoNotificaciones() {
   }
 }
 
+function pedirPermisoNotificacionesChat() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission().then((permiso) => {
+      if (permiso === 'granted') {
+        console.log('Permiso de notificaciones de chat concedido');
+      }
+    });
+  }
+}
+
 function mostrarNotificacionLocal(titulo, opciones = {}) {
   if (!('serviceWorker' in navigator) || !navigator.serviceWorker.ready) return;
 
@@ -1427,6 +1533,12 @@ navItems.forEach((item) => {
     tabPanels.forEach((panel) => panel.classList.remove('activo'));
     item.classList.add('activo');
     document.getElementById(`panel-${item.dataset.tab}`)?.classList.add('activo');
+    if (item.dataset.tab === 'pareja') {
+      mensajesParejaSinLeer = 0;
+      ultimoMensajeParejaVisto = Date.now() / 1000;
+      pedirPermisoNotificacionesChat();
+      actualizarIndicadorChat();
+    }
   });
 });
 
