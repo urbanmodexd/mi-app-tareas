@@ -20,11 +20,13 @@
       <input type="email" id="input-email" placeholder="Correo electrónico">
       <input type="password" id="input-password" placeholder="Contraseña">
       <input type="text" id="input-nombre-registro" placeholder="Nombre para mostrar" style="display:none; margin-top:10px;">
+      <input type="tel" id="input-telefono-registro" placeholder="Teléfono (opcional)" style="display:none; margin-top:10px;">
       <div class="modal-botones">
         <button id="btn-guardar-nombre" class="btn-primario">Iniciar sesión</button>
       </div>
       <button id="btn-google" class="btn-secundario btn-google">Continuar con Google</button>
       <p class="texto-auth">
+        <span id="link-recuperar-password" style="cursor:pointer; color:#2E6FBF; display:block; margin:8px 0;">¿Olvidaste tu contraseña?</span>
         <span id="texto-cambiar-modo">¿No tienes cuenta? Regístrate</span>
       </p>
     </div>
@@ -56,6 +58,7 @@
         <h3>Contactos</h3>
         <div class="nueva-tarea nueva-tarea-contactos">
           <input type="email" id="input-contacto-email" placeholder="Correo del contacto">
+          <input type="tel" id="input-contacto-telefono" placeholder="Teléfono del contacto">
           <button id="btn-agregar-contacto">+</button>
         </div>
         <div class="lista-contactos" id="lista-contactos"></div>
@@ -117,6 +120,20 @@
       <button id="dibujo-preview-cerrar" class="btn-secundario">Cerrar</button>
       <img id="dibujo-preview-img" alt="Dibujo compartido">
       <p id="dibujo-preview-autor"></p>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="chat-overlay" style="display:none;">
+    <div class="modal" style="max-width:420px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 id="chat-titulo">Chat</h3>
+        <button id="chat-cerrar" class="btn-secundario">Cerrar</button>
+      </div>
+      <div id="chat-mensajes" style="min-height:220px; max-height:280px; overflow:auto; margin-bottom:10px;"></div>
+      <input type="text" id="chat-input" placeholder="Escribe un mensaje">
+      <div class="modal-botones">
+        <button id="chat-enviar" class="btn-primario">Enviar</button>
+      </div>
     </div>
   </div>
 

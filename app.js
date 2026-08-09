@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
-  GoogleAuthProvider, signInWithPopup
+  GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 
 let tareas = [];
@@ -17,6 +17,8 @@ let uidActual = '';
 let dibujando = false;
 let ctxDibujo = null;
 let modoRegistro = false;
+let chatContactoActivo = null;
+let chatUnsubscribe = null;
 
 const inputTarea = document.getElementById('input-tarea');
 const btnAgregar = document.getElementById('btn-agregar');
@@ -25,14 +27,23 @@ const selectorUsuario = document.getElementById('selector-usuario');
 const inputEmail = document.getElementById('input-email');
 const inputPassword = document.getElementById('input-password');
 const inputNombreRegistro = document.getElementById('input-nombre-registro');
+const inputTelefonoRegistro = document.getElementById('input-telefono-registro');
 const btnGuardarNombre = document.getElementById('btn-guardar-nombre');
 const btnGoogle = document.getElementById('btn-google');
 const tituloAuth = document.getElementById('titulo-auth');
 const textoCambiarModo = document.getElementById('texto-cambiar-modo');
+const linkRecuperarPassword = document.getElementById('link-recuperar-password');
 const btnAbrirDibujo = document.getElementById('btn-abrir-dibujo');
 const inputContactoEmail = document.getElementById('input-contacto-email');
+const inputContactoTelefono = document.getElementById('input-contacto-telefono');
 const btnAgregarContacto = document.getElementById('btn-agregar-contacto');
 const listaContactos = document.getElementById('lista-contactos');
+const chatOverlay = document.getElementById('chat-overlay');
+const chatTitulo = document.getElementById('chat-titulo');
+const chatMensajes = document.getElementById('chat-mensajes');
+const chatInput = document.getElementById('chat-input');
+const chatEnviar = document.getElementById('chat-enviar');
+const chatCerrar = document.getElementById('chat-cerrar');
 const btnVincularPareja = document.getElementById('btn-vincular-pareja');
 const inputCodigoVinculo = document.getElementById('input-codigo-vinculo');
 const btnAceptarVinculo = document.getElementById('btn-aceptar-vinculo');
@@ -63,6 +74,7 @@ const dibujosRef = collection(db, 'dibujos');
 const usuariosRef = collection(db, 'usuarios');
 const contactosRef = collection(db, 'contactos');
 const vinculosRef = collection(db, 'vinculos');
+const mensajesRef = collection(db, 'mensajes');
 
 // ===== AUTENTICACIÓN REAL =====
 function mostrarAuth() {
@@ -80,16 +92,22 @@ function cambiarModoAuth() {
     tituloAuth.textContent = 'Crea tu cuenta';
     btnGuardarNombre.textContent = 'Registrarme';
     inputNombreRegistro.style.display = 'block';
+    inputTelefonoRegistro.style.display = 'block';
     textoCambiarModo.textContent = '¿Ya tienes cuenta? Inicia sesión';
   } else {
     tituloAuth.textContent = 'Inicia sesión';
     btnGuardarNombre.textContent = 'Iniciar sesión';
     inputNombreRegistro.style.display = 'none';
+    inputTelefonoRegistro.style.display = 'none';
     textoCambiarModo.textContent = '¿No tienes cuenta? Regístrate';
   }
 }
 
-async function guardarPerfilUsuario(usuario, nombreFinal) {
+function esEmailValido(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function guardarPerfilUsuario(usuario, nombreFinal, telefono = null) {
   try {
     await updateProfile(usuario, { displayName: nombreFinal });
   } catch (error) {
@@ -100,6 +118,7 @@ async function guardarPerfilUsuario(usuario, nombreFinal) {
     await setDoc(doc(db, 'usuarios', usuario.uid), {
       nombre: nombreFinal,
       email: usuario.email,
+      telefono: telefono || null,
       foto: usuario.photoURL || null,
       creado: serverTimestamp()
     }, { merge: true });
@@ -159,14 +178,21 @@ async function guardarNombreUsuario() {
   const email = inputEmail.value.trim();
   const password = inputPassword.value.trim();
   const nombre = inputNombreRegistro.value.trim();
+  const telefono = inputTelefonoRegistro.value.trim();
 
   if (email === '' || password === '') return;
+
+  if (!esEmailValido(email)) {
+    alert('Ingresa un correo electrónico válido');
+    return;
+  }
 
   try {
     if (modoRegistro) {
       const credencial = await createUserWithEmailAndPassword(auth, email, password);
+      await sendEmailVerification(credencial.user);
       const nombreFinal = nombre || email.split('@')[0];
-      await guardarPerfilUsuario(credencial.user, nombreFinal);
+      await guardarPerfilUsuario(credencial.user, nombreFinal, telefono);
       usuarioActual = nombreFinal;
       uidActual = credencial.user.uid;
       ocultarAuth();
@@ -174,6 +200,28 @@ async function guardarNombreUsuario() {
     } else {
       await signInWithEmailAndPassword(auth, email, password);
     }
+  } catch (error) {
+    alert(error.message);
+  }
+}
+
+async function recuperarPassword() {
+  let correo = inputEmail.value.trim();
+
+  if (!correo) {
+    correo = window.prompt('Ingresa tu correo electrónico para recuperar tu contraseña');
+  }
+
+  if (!correo) return;
+
+  if (!esEmailValido(correo)) {
+    alert('Ingresa un correo electrónico válido');
+    return;
+  }
+
+  try {
+    await sendPasswordResetEmail(auth, correo);
+    alert('Te enviamos un correo para restablecer tu contraseña');
   } catch (error) {
     alert(error.message);
   }
@@ -196,6 +244,7 @@ async function loginConGoogle() {
 
 btnGuardarNombre.addEventListener('click', guardarNombreUsuario);
 btnGoogle.addEventListener('click', loginConGoogle);
+linkRecuperarPassword.addEventListener('click', recuperarPassword);
 inputPassword.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') guardarNombreUsuario();
 });
@@ -354,11 +403,90 @@ function renderContactos() {
   contactos.forEach((contacto) => {
     const li = document.createElement('li');
     li.className = 'contacto-item';
-    li.textContent = `${contacto.nombreContacto || contacto.emailContacto} (${contacto.emailContacto})`;
+    li.textContent = `${contacto.nombreContacto || contacto.emailContacto || 'Contacto'}${contacto.emailContacto ? ` · ${contacto.emailContacto}` : ''}${contacto.telefonoContacto ? ` · ${contacto.telefonoContacto}` : ''}`;
+    li.style.cursor = 'pointer';
+    li.addEventListener('click', () => abrirChatContacto(contacto));
     ul.appendChild(li);
   });
 
   listaContactos.appendChild(ul);
+}
+
+function renderMensajes(mensajes) {
+  chatMensajes.innerHTML = '';
+
+  if (mensajes.length === 0) {
+    chatMensajes.innerHTML = '<div class="tarea-vacia">No hay mensajes aún</div>';
+    return;
+  }
+
+  const contenedor = document.createElement('div');
+  contenedor.style.display = 'flex';
+  contenedor.style.flexDirection = 'column';
+  contenedor.style.gap = '8px';
+
+  mensajes.forEach((mensaje) => {
+    const bubble = document.createElement('div');
+    const esMio = mensaje.de === uidActual;
+    bubble.style.maxWidth = '80%';
+    bubble.style.padding = '8px 10px';
+    bubble.style.borderRadius = '12px';
+    bubble.style.alignSelf = esMio ? 'flex-end' : 'flex-start';
+    bubble.style.background = esMio ? '#2E6FBF' : '#F2F6FA';
+    bubble.style.color = esMio ? 'white' : '#2F3B4A';
+    bubble.innerHTML = `<div>${mensaje.texto}</div>`;
+    contenedor.appendChild(bubble);
+  });
+
+  chatMensajes.appendChild(contenedor);
+}
+
+function abrirChatContacto(contacto) {
+  chatContactoActivo = contacto;
+  chatTitulo.textContent = contacto.nombreContacto || contacto.emailContacto || 'Contacto';
+  chatOverlay.style.display = 'flex';
+  renderMensajes([]);
+
+  if (chatUnsubscribe) {
+    chatUnsubscribe();
+  }
+
+  const q = query(mensajesRef, orderBy('creado', 'asc'));
+  chatUnsubscribe = onSnapshot(q, (snapshot) => {
+    const mensajes = snapshot.docs
+      .map((docu) => ({ id: docu.id, ...docu.data() }))
+      .filter((mensaje) => {
+        return (mensaje.de === uidActual && mensaje.para === contacto.uidContacto) ||
+          (mensaje.de === contacto.uidContacto && mensaje.para === uidActual);
+      });
+
+    renderMensajes(mensajes);
+  });
+}
+
+function cerrarChatContacto() {
+  chatOverlay.style.display = 'none';
+  chatContactoActivo = null;
+  if (chatUnsubscribe) {
+    chatUnsubscribe();
+    chatUnsubscribe = null;
+  }
+  chatInput.value = '';
+}
+
+async function enviarMensaje() {
+  const texto = chatInput.value.trim();
+  if (!texto || !chatContactoActivo || !uidActual) return;
+
+  await addDoc(mensajesRef, {
+    de: uidActual,
+    para: chatContactoActivo.uidContacto,
+    texto,
+    creado: serverTimestamp()
+  });
+
+  chatInput.value = '';
+  chatInput.focus();
 }
 
 function renderDestinatariosDibujo() {
@@ -596,20 +724,31 @@ inputTarea.addEventListener('keypress', function(e) {
 
 btnAgregarContacto.addEventListener('click', async function() {
   const email = inputContactoEmail.value.trim();
-  if (!email || !uidActual) return;
+  const telefono = inputContactoTelefono.value.trim();
+  if ((!email && !telefono) || !uidActual) {
+    alert('Ingresa un correo o un teléfono para agregar un contacto');
+    return;
+  }
 
   const q = query(usuariosRef);
   const usuarios = [];
   const resultado = await getDocs(q);
   resultado.forEach((docu) => usuarios.push({ id: docu.id, ...docu.data() }));
-  const contacto = usuarios.find(u => u.email === email);
+
+  let contacto = null;
+  if (email) {
+    contacto = usuarios.find(u => u.email === email);
+  }
+  if (!contacto && telefono) {
+    contacto = usuarios.find(u => u.telefono === telefono);
+  }
 
   if (!contacto) {
-    alert('No existe un usuario con ese correo');
+    alert('No existe un usuario con ese correo o teléfono');
     return;
   }
 
-  const yaExiste = contactos.some(c => c.uidContacto === contacto.id || c.emailContacto === email);
+  const yaExiste = contactos.some(c => c.uidContacto === contacto.id || c.emailContacto === email || c.telefonoContacto === telefono);
   if (yaExiste) {
     alert('Ese contacto ya está agregado');
     return;
@@ -619,11 +758,13 @@ btnAgregarContacto.addEventListener('click', async function() {
     uidUsuario: uidActual,
     uidContacto: contacto.id,
     nombreContacto: contacto.nombre || contacto.email,
-    emailContacto: contacto.email,
+    emailContacto: contacto.email || null,
+    telefonoContacto: contacto.telefono || null,
     creado: serverTimestamp()
   }, { merge: true });
 
   inputContactoEmail.value = '';
+  inputContactoTelefono.value = '';
 });
 
 btnVincularPareja.addEventListener('click', async function() {
@@ -669,6 +810,14 @@ btnAceptarVinculo.addEventListener('click', async function() {
 btnAbrirDibujo.addEventListener('click', abrirDibujo);
 dibujoCancelar.addEventListener('click', cerrarDibujo);
 dibujoEnviar.addEventListener('click', enviarDibujo);
+chatCerrar.addEventListener('click', cerrarChatContacto);
+chatEnviar.addEventListener('click', enviarMensaje);
+chatInput.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') enviarMensaje();
+});
+chatOverlay.addEventListener('click', function(e) {
+  if (e.target === this) cerrarChatContacto();
+});
 colorDibujo.addEventListener('input', actualizarEstiloDibujo);
 grosorDibujo.addEventListener('input', actualizarEstiloDibujo);
 dibujoPreviewCerrar.addEventListener('click', cerrarPreviewDibujo);
