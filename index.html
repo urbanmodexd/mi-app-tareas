@@ -13,7 +13,27 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+  <div class="selector-usuario" id="selector-usuario">
+    <div class="modal">
+      <h3 id="titulo-auth">Inicia sesión</h3>
+      <input type="email" id="input-email" placeholder="Correo electrónico">
+      <input type="password" id="input-password" placeholder="Contraseña">
+      <input type="text" id="input-nombre-registro" placeholder="Nombre para mostrar" style="display:none; margin-top:10px;">
+      <div class="modal-botones">
+        <button id="btn-guardar-nombre" class="btn-primario">Iniciar sesión</button>
+      </div>
+      <p class="texto-auth">
+        <span id="texto-cambiar-modo">¿No tienes cuenta? Regístrate</span>
+      </p>
+    </div>
+  </div>
+
   <div class="app">
+<div class="saludo-usuario">
+  Hola, <strong id="nombre-usuario-actual">...</strong>
+  <button id="btn-cerrar-sesion" title="Cerrar sesión">↪</button>
+</div>
 
     <div class="mascota-card">
       <img src="icon-192.png" alt="Mi mascota">
@@ -28,40 +48,71 @@
         <input type="text" id="input-tarea" placeholder="¿Qué tienes pendiente?">
         <button id="btn-agregar">+</button>
       </div>
+      <button id="btn-abrir-dibujo" class="btn-dibujo">✏️ Dibujar</button>
       <ul class="lista-tareas" id="lista-tareas">
         <li class="tarea-vacia">No tienes pendientes por clasificar</li>
       </ul>
+
+      <div class="seccion-dibujos">
+        <h3>Dibujos para ti</h3>
+        <div class="lista-dibujos" id="lista-dibujos"></div>
+      </div>
     </div>
 
   </div>
-<div class="modal-overlay" id="modal-overlay">
-  <div class="modal">
-    <h3 id="modal-titulo">¿Cuándo quieres hacerlo?</h3>
-    <div id="campo-fecha">
-      <label>Día</label>
-      <input type="date" id="modal-fecha">
-    </div>
-    <label>Hora</label>
-    <input type="time" id="modal-hora">
-    <div class="modal-botones">
-      <button id="modal-cancelar" class="btn-secundario">Cancelar</button>
-      <button id="modal-guardar" class="btn-primario">Guardar</button>
+
+  <div class="modal-overlay" id="modal-overlay">
+    <div class="modal">
+      <h3 id="modal-titulo">¿Cuándo quieres hacerlo?</h3>
+      <div id="campo-fecha">
+        <label>Día</label>
+        <input type="date" id="modal-fecha">
+      </div>
+      <label>Hora</label>
+      <input type="time" id="modal-hora">
+      <div class="modal-botones">
+        <button id="modal-cancelar" class="btn-secundario">Cancelar</button>
+        <button id="modal-guardar" class="btn-primario">Guardar</button>
+      </div>
     </div>
   </div>
-</div>
-<div class="celebracion-overlay" id="celebracion-overlay">
-  <div class="confeti-contenedor" id="confeti-contenedor"></div>
-  <div class="celebracion-contenido">
-    <img src="icon-192.png" alt="Mascota feliz" class="celebracion-mascota" id="celebracion-mascota">
-    <h2 id="celebracion-titulo">¡Lo lograste!</h2>
-    <p id="celebracion-mensaje">Completaste tu primera tarea 🎉</p>
+
+  <div class="dibujo-overlay" id="dibujo-overlay">
+    <div class="dibujo-panel">
+      <div class="dibujo-controles">
+        <button id="dibujo-cancelar" class="btn-secundario">Cancelar</button>
+        <div class="dibujo-opciones">
+          <input type="color" id="color-dibujo" value="#2E6FBF">
+          <input type="range" id="grosor-dibujo" min="1" max="16" value="4">
+        </div>
+        <button id="dibujo-enviar" class="btn-primario">Enviar</button>
+      </div>
+      <canvas id="canvas-dibujo"></canvas>
+    </div>
   </div>
-</div>
-  <script src="app.js"></script>
-<script>
-  if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('service-worker.js');
-  }
-</script>
+
+  <div class="dibujo-preview-overlay" id="dibujo-preview-overlay">
+    <div class="dibujo-preview-contenido">
+      <button id="dibujo-preview-cerrar" class="btn-secundario">Cerrar</button>
+      <img id="dibujo-preview-img" alt="Dibujo compartido">
+      <p id="dibujo-preview-autor"></p>
+    </div>
+  </div>
+
+  <div class="celebracion-overlay" id="celebracion-overlay">
+    <div class="confeti-contenedor" id="confeti-contenedor"></div>
+    <div class="celebracion-contenido">
+      <img src="icon-192.png" alt="Mascota feliz" class="celebracion-mascota" id="celebracion-mascota">
+      <h2 id="celebracion-titulo">¡Lo lograste!</h2>
+      <p id="celebracion-mensaje">Completaste tu primera tarea 🎉</p>
+    </div>
+  </div>
+
+  <script type="module" src="app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('service-worker.js');
+    }
+  </script>
 </body>
 </html>
