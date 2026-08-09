@@ -74,6 +74,24 @@ function cambiarModoAuth() {
   }
 }
 
+async function guardarPerfilUsuario(usuario, nombreFinal) {
+  try {
+    await updateProfile(usuario, { displayName: nombreFinal });
+  } catch (error) {
+    console.warn('No se pudo actualizar el perfil de Firebase Auth:', error);
+  }
+
+  try {
+    await setDoc(doc(db, 'usuarios', usuario.uid), {
+      nombre: nombreFinal,
+      email: usuario.email,
+      creado: serverTimestamp()
+    }, { merge: true });
+  } catch (error) {
+    console.warn('No se pudo guardar el perfil en Firestore:', error);
+  }
+}
+
 async function guardarNombreUsuario() {
   const email = inputEmail.value.trim();
   const password = inputPassword.value.trim();
@@ -84,13 +102,8 @@ async function guardarNombreUsuario() {
   try {
     if (modoRegistro) {
       const credencial = await createUserWithEmailAndPassword(auth, email, password);
-      const nombreFinal = nombre || email;
-      await updateProfile(credencial.user, { displayName: nombreFinal });
-      await setDoc(doc(db, 'usuarios', credencial.user.uid), {
-        nombre: nombreFinal,
-        email: credencial.user.email,
-        creado: serverTimestamp()
-      });
+      const nombreFinal = nombre || email.split('@')[0];
+      await guardarPerfilUsuario(credencial.user, nombreFinal);
       usuarioActual = nombreFinal;
       ocultarAuth();
       iniciarApp();
