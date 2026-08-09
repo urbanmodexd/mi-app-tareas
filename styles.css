@@ -113,6 +113,101 @@ body {
 /* Lista de tareas */
 .lista-tareas { list-style: none; }
 
+.bottom-nav {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 14px;
+  position: sticky;
+  bottom: 12px;
+  z-index: 20;
+}
+
+.nav-item {
+  flex: 1;
+  border: none;
+  border-radius: 999px;
+  padding: 10px 8px;
+  background: #EAF2FB;
+  color: #5B7A9D;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.nav-item.activo {
+  background: #2E6FBF;
+  color: white;
+}
+
+.tab-panel {
+  display: none;
+  animation: aparecerContenido 0.25s ease;
+}
+
+.tab-panel.activo {
+  display: block;
+}
+
+.contactos-seccion {
+  margin-top: 12px;
+}
+
+.contactos-seccion h4 {
+  color: #1B4A8C;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.contacto-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  background: #F7FAFD;
+  border-radius: 10px;
+}
+
+.contacto-info {
+  font-size: 13px;
+  color: #2B3A4A;
+}
+
+.contacto-acciones {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-aceptar, .btn-rechazar {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.btn-aceptar {
+  background: #2E6FBF;
+  color: white;
+}
+
+.btn-rechazar {
+  background: #EAF2FB;
+  color: #5B7A9D;
+}
+
+.perfil-card {
+  padding: 12px;
+  border-radius: 14px;
+  background: #F7FAFD;
+  color: #2B3A4A;
+}
+
+.perfil-stats {
+  margin-top: 8px;
+}
+
 .lista-tareas li {
   display: flex;
   align-items: flex-start;

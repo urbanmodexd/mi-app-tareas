@@ -25,6 +25,13 @@
         <button id="btn-guardar-nombre" class="btn-primario">Iniciar sesión</button>
       </div>
       <button id="btn-google" class="btn-secundario btn-google">Continuar con Google</button>
+      <div id="recuperacion-container" class="recuperacion-container" style="display:none; margin-top:12px;">
+        <input type="email" id="input-email-recuperacion" placeholder="Correo para recuperar">
+        <button id="btn-enviar-codigo-recuperacion" class="btn-secundario">Enviar código</button>
+        <input type="text" id="input-codigo-recuperacion" placeholder="Código de 6 dígitos" style="margin-top:8px;">
+        <input type="password" id="input-nueva-password" placeholder="Nueva contraseña" style="margin-top:8px;">
+        <button id="btn-confirmar-recuperacion" class="btn-primario" style="margin-top:8px;">Cambiar contraseña</button>
+      </div>
       <p class="texto-auth">
         <span id="link-recuperar-password" style="cursor:pointer; color:#2E6FBF; display:block; margin:8px 0;">¿Olvidaste tu contraseña?</span>
         <span id="texto-cambiar-modo">¿No tienes cuenta? Regístrate</span>
@@ -33,10 +40,10 @@
   </div>
 
   <div class="app">
-<div class="saludo-usuario">
-  Hola, <strong id="nombre-usuario-actual">...</strong>
-  <button id="btn-cerrar-sesion" title="Cerrar sesión">↪</button>
-</div>
+    <div class="saludo-usuario">
+      Hola, <strong id="nombre-usuario-actual">...</strong>
+      <button id="btn-cerrar-sesion" title="Cerrar sesión">↪</button>
+    </div>
 
     <div class="mascota-card">
       <img src="icon-192.png" alt="Mi mascota">
@@ -47,41 +54,76 @@
       </div>
     </div>
 
-    <div class="bandeja">
-      <h2>Bandeja de entrada</h2>
-      <div class="nueva-tarea">
-        <input type="text" id="input-tarea" placeholder="¿Qué tienes pendiente?">
-        <button id="btn-agregar">+</button>
+    <nav class="bottom-nav">
+      <button class="nav-item activo" data-tab="tareas">📝 Tareas</button>
+      <button class="nav-item" data-tab="dibujos">🎨 Dibujos</button>
+      <button class="nav-item" data-tab="contactos">👥 Contactos</button>
+      <button class="nav-item" data-tab="perfil">👤 Perfil</button>
+    </nav>
+
+    <section class="tab-panel activo" id="panel-tareas">
+      <div class="bandeja">
+        <h2>📝 Bandeja de entrada</h2>
+        <div class="nueva-tarea">
+          <input type="text" id="input-tarea" placeholder="¿Qué tienes pendiente?">
+          <button id="btn-agregar">+</button>
+        </div>
+        <ul class="lista-tareas" id="lista-tareas">
+          <li class="tarea-vacia">No tienes pendientes por ahora</li>
+        </ul>
       </div>
-      <button id="btn-abrir-dibujo" class="btn-dibujo">✏️ Dibujar</button>
-      <div class="seccion-contactos">
-        <h3>Contactos</h3>
-        <div class="nueva-tarea nueva-tarea-contactos">
-          <input type="email" id="input-contacto-email" placeholder="Correo del contacto">
-          <input type="tel" id="input-contacto-telefono" placeholder="Teléfono del contacto">
-          <button id="btn-agregar-contacto">+</button>
+    </section>
+
+    <section class="tab-panel" id="panel-dibujos">
+      <div class="bandeja">
+        <h2>🎨 Dibujos compartidos</h2>
+        <button id="btn-abrir-dibujo" class="btn-dibujo">✏️ Crear dibujo</button>
+        <div class="seccion-dibujos">
+          <h3>Dibujos para ti</h3>
+          <div class="lista-dibujos" id="lista-dibujos"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-contactos">
+      <div class="bandeja">
+        <h2>👥 Contactos</h2>
+        <div class="seccion-contactos">
+          <h3>Agregar contacto</h3>
+          <div class="nueva-tarea nueva-tarea-contactos">
+            <input type="email" id="input-contacto-email" placeholder="Correo del contacto">
+            <input type="tel" id="input-contacto-telefono" placeholder="Teléfono del contacto">
+            <button id="btn-agregar-contacto">+</button>
+          </div>
+        </div>
+        <div class="seccion-vinculos">
+          <h3>💞 Vincular con mi pareja</h3>
+          <button id="btn-vincular-pareja" class="btn-dibujo">Generar código</button>
+          <div class="nueva-tarea nueva-tarea-contactos">
+            <input type="text" id="input-codigo-vinculo" placeholder="Código de pareja">
+            <button id="btn-aceptar-vinculo">✓</button>
+          </div>
+          <div class="estado-vinculo" id="estado-vinculo">Sin vínculo activo</div>
         </div>
         <div class="lista-contactos" id="lista-contactos"></div>
       </div>
-      <div class="seccion-vinculos">
-        <h3>Vincular con mi pareja</h3>
-        <button id="btn-vincular-pareja" class="btn-dibujo">Generar código</button>
-        <div class="nueva-tarea nueva-tarea-contactos">
-          <input type="text" id="input-codigo-vinculo" placeholder="Código de pareja">
-          <button id="btn-aceptar-vinculo">✓</button>
+    </section>
+
+    <section class="tab-panel" id="panel-perfil">
+      <div class="bandeja">
+        <h2>👤 Perfil</h2>
+        <div class="perfil-card">
+          <p><strong id="nombre-usuario-actual-perfil">...</strong></p>
+          <p>Tu espacio para ver tu progreso y cerrar sesión.</p>
+          <div class="racha perfil-stats">
+            Racha: <strong id="racha-dias-perfil">0 días</strong>
+            <span class="separador-racha">•</span>
+            Puntos: <strong id="puntos-equipo-perfil">0</strong>
+          </div>
+          <button id="btn-cerrar-sesion-perfil" class="btn-secundario" style="margin-top:12px;">Cerrar sesión</button>
         </div>
-        <div class="estado-vinculo" id="estado-vinculo">Sin vínculo activo</div>
       </div>
-      <ul class="lista-tareas" id="lista-tareas">
-        <li class="tarea-vacia">No tienes pendientes por clasificar</li>
-      </ul>
-
-      <div class="seccion-dibujos">
-        <h3>Dibujos para ti</h3>
-        <div class="lista-dibujos" id="lista-dibujos"></div>
-      </div>
-    </div>
-
+    </section>
   </div>
 
   <div class="modal-overlay" id="modal-overlay">
@@ -146,6 +188,7 @@
     </div>
   </div>
 
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script type="module" src="app.js"></script>
   <script>
     if ('serviceWorker' in navigator) {

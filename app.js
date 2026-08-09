@@ -1,11 +1,12 @@
-import { db, auth } from './firebase-init.js';
+import { db, auth, functions } from './firebase-init.js';
 import {
-  collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, getDoc, getDocs, setDoc
+  collection, addDoc, onSnapshot, doc, updateDoc, query, orderBy, serverTimestamp, getDoc, getDocs, setDoc, where
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
-  GoogleAuthProvider, signInWithPopup, sendPasswordResetEmail, sendEmailVerification
+  GoogleAuthProvider, signInWithPopup, sendEmailVerification
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
+import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
 let tareas = [];
 let dibujos = [];
@@ -27,6 +28,12 @@ const selectorUsuario = document.getElementById('selector-usuario');
 const inputEmail = document.getElementById('input-email');
 const inputPassword = document.getElementById('input-password');
 const inputNombreRegistro = document.getElementById('input-nombre-registro');
+const recuperacionContainer = document.getElementById('recuperacion-container');
+const inputEmailRecuperacion = document.getElementById('input-email-recuperacion');
+const inputCodigoRecuperacion = document.getElementById('input-codigo-recuperacion');
+const inputNuevaPassword = document.getElementById('input-nueva-password');
+const btnEnviarCodigoRecuperacion = document.getElementById('btn-enviar-codigo-recuperacion');
+const btnConfirmarRecuperacion = document.getElementById('btn-confirmar-recuperacion');
 const inputTelefonoRegistro = document.getElementById('input-telefono-registro');
 const btnGuardarNombre = document.getElementById('btn-guardar-nombre');
 const btnGoogle = document.getElementById('btn-google');
@@ -63,6 +70,8 @@ const dibujoPreviewCerrar = document.getElementById('dibujo-preview-cerrar');
 
 const modalOverlay = document.getElementById('modal-overlay');
 const modalTitulo = document.getElementById('modal-titulo');
+const navItems = document.querySelectorAll('.nav-item');
+const tabPanels = document.querySelectorAll('.tab-panel');
 const campoFecha = document.getElementById('campo-fecha');
 const modalFecha = document.getElementById('modal-fecha');
 const modalHora = document.getElementById('modal-hora');
@@ -142,10 +151,18 @@ function obtenerTareasVisibles(lista) {
 async function actualizarEstadisticasEquipo() {
   const rachaEl = document.getElementById('racha-dias');
   const puntosEl = document.getElementById('puntos-equipo');
+  const rachaPerfilEl = document.getElementById('racha-dias-perfil');
+  const puntosPerfilEl = document.getElementById('puntos-equipo-perfil');
+
+  const actualizarVista = (rachaTexto, puntosTexto) => {
+    if (rachaEl) rachaEl.textContent = rachaTexto;
+    if (puntosEl) puntosEl.textContent = puntosTexto;
+    if (rachaPerfilEl) rachaPerfilEl.textContent = rachaTexto;
+    if (puntosPerfilEl) puntosPerfilEl.textContent = puntosTexto;
+  };
 
   if (!uidActual) {
-    if (rachaEl) rachaEl.textContent = '0 días';
-    if (puntosEl) puntosEl.textContent = '0';
+    actualizarVista('0 días', '0');
     return;
   }
 
@@ -154,8 +171,7 @@ async function actualizarEstadisticasEquipo() {
       const vinculoDoc = await getDoc(doc(db, 'vinculos', vinculoActivo.id));
       if (vinculoDoc.exists()) {
         const datos = vinculoDoc.data();
-        if (rachaEl) rachaEl.textContent = `${datos.racha || 0} días`;
-        if (puntosEl) puntosEl.textContent = datos.puntos || 0;
+        actualizarVista(`${datos.racha || 0} días`, datos.puntos || 0);
         return;
       }
     }
@@ -163,11 +179,9 @@ async function actualizarEstadisticasEquipo() {
     const perfilDoc = await getDoc(doc(db, 'usuarios', uidActual));
     if (perfilDoc.exists()) {
       const datos = perfilDoc.data();
-      if (rachaEl) rachaEl.textContent = `${datos.racha || 0} días`;
-      if (puntosEl) puntosEl.textContent = datos.puntos || 0;
+      actualizarVista(`${datos.racha || 0} días`, datos.puntos || 0);
     } else {
-      if (rachaEl) rachaEl.textContent = '0 días';
-      if (puntosEl) puntosEl.textContent = '0';
+      actualizarVista('0 días', '0');
     }
   } catch (error) {
     console.warn('No se pudieron cargar las estadísticas:', error);
@@ -205,26 +219,96 @@ async function guardarNombreUsuario() {
   }
 }
 
-async function recuperarPassword() {
-  let correo = inputEmail.value.trim();
+function mostrarRecuperacion() {
+  recuperacionContainer.style.display = 'block';
+  inputEmailRecuperacion.value = inputEmail.value.trim();
+}
 
-  if (!correo) {
-    correo = window.prompt('Ingresa tu correo electrónico para recuperar tu contraseña');
+function ocultarRecuperacion() {
+  recuperacionContainer.style.display = 'none';
+  inputEmailRecuperacion.value = '';
+  inputCodigoRecuperacion.value = '';
+  inputNuevaPassword.value = '';
+}
+
+async function enviarCodigoRecuperacion() {
+  const correo = inputEmailRecuperacion.value.trim() || inputEmail.value.trim();
+  if (!correo || !esEmailValido(correo)) {
+    alert('Ingresa un correo electrónico válido');
+    return;
   }
 
-  if (!correo) return;
+  try {
+    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiracion = new Date(Date.now() + 15 * 60 * 1000);
+    await addDoc(collection(db, 'codigos_recuperacion'), {
+      email: correo.toLowerCase(),
+      codigo,
+      expiracion: expiracion,
+      usado: false,
+      creado: serverTimestamp()
+    });
+
+    try {
+      const enviarEmail = httpsCallable(functions, 'enviarCodigoRecuperacion');
+      await enviarEmail({ email: correo, codigo });
+    } catch (emailError) {
+      console.warn('No se pudo enviar el correo con la Cloud Function:', emailError);
+      alert('Código generado localmente. Para enviar correos reales necesitas una Cloud Function o un servicio como EmailJS.');
+    }
+
+    alert('Se generó un código de recuperación. Revisa la consola o el correo si la función de envío está activa.');
+  } catch (error) {
+    alert(error.message || 'No se pudo generar el código');
+  }
+}
+
+async function confirmarRecuperacion() {
+  const correo = inputEmailRecuperacion.value.trim() || inputEmail.value.trim();
+  const codigo = inputCodigoRecuperacion.value.trim();
+  const nuevaPassword = inputNuevaPassword.value.trim();
+
+  if (!correo || !codigo || !nuevaPassword) {
+    alert('Completa el correo, el código y la nueva contraseña');
+    return;
+  }
+
+  try {
+    const q = query(collection(db, 'codigos_recuperacion'), where('email', '==', correo.toLowerCase()), where('usado', '==', false));
+    const resultado = await getDocs(q);
+    const codigoValido = resultado.docs.find(docu => {
+      const data = docu.data();
+      return data.codigo === codigo && new Date(data.expiracion?.toDate?.() || data.expiracion) > new Date();
+    });
+
+    if (!codigoValido) {
+      alert('El código es inválido o ya expiró');
+      return;
+    }
+
+    await updateDoc(doc(db, 'codigos_recuperacion', codigoValido.id), { usado: true });
+    const enviarPassword = httpsCallable(functions, 'cambiarPasswordConCodigo');
+    await enviarPassword({ email: correo.toLowerCase(), codigo, nuevaPassword });
+    alert('Contraseña actualizada correctamente');
+    ocultarRecuperacion();
+  } catch (error) {
+    alert(error.message || 'No se pudo actualizar la contraseña');
+  }
+}
+
+async function recuperarPassword() {
+  const correo = inputEmail.value.trim();
+  if (!correo) {
+    alert('Ingresa tu correo para recuperar la contraseña');
+    return;
+  }
 
   if (!esEmailValido(correo)) {
     alert('Ingresa un correo electrónico válido');
     return;
   }
 
-  try {
-    await sendPasswordResetEmail(auth, correo);
-    alert('Te enviamos un correo para restablecer tu contraseña');
-  } catch (error) {
-    alert(error.message);
-  }
+  mostrarRecuperacion();
 }
 
 async function loginConGoogle() {
@@ -245,6 +329,8 @@ async function loginConGoogle() {
 btnGuardarNombre.addEventListener('click', guardarNombreUsuario);
 btnGoogle.addEventListener('click', loginConGoogle);
 linkRecuperarPassword.addEventListener('click', recuperarPassword);
+btnEnviarCodigoRecuperacion.addEventListener('click', enviarCodigoRecuperacion);
+btnConfirmarRecuperacion.addEventListener('click', confirmarRecuperacion);
 inputPassword.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') guardarNombreUsuario();
 });
@@ -271,8 +357,12 @@ onAuthStateChanged(auth, async (usuario) => {
 
 function iniciarApp() {
   document.getElementById('nombre-usuario-actual').textContent = usuarioActual;
+  document.getElementById('nombre-usuario-actual-perfil').textContent = usuarioActual || 'Tu perfil';
   document.getElementById('racha-dias').textContent = '0 días';
+  document.getElementById('racha-dias-perfil').textContent = '0 días';
   document.getElementById('puntos-equipo').textContent = '0';
+  document.getElementById('puntos-equipo-perfil').textContent = '0';
+  pedirPermisoNotificaciones();
 
   const q = query(tareasRef, orderBy('creada', 'asc'));
   onSnapshot(q, (snapshot) => {
@@ -323,12 +413,14 @@ function formatearFechaHora(fecha) {
 function renderTareas() {
   listaTareas.innerHTML = '';
 
-  const tareasVisibles = obtenerTareasVisibles(tareas);
+  const tareasVisibles = obtenerTareasVisibles(tareas).filter((tarea) => !tarea.completada);
 
   if (tareasVisibles.length === 0) {
-    listaTareas.innerHTML = '<li class="tarea-vacia">No tienes pendientes por clasificar</li>';
+    listaTareas.innerHTML = '<li class="tarea-vacia">No tienes pendientes por ahora</li>';
     return;
   }
+
+  registrarNotificacionesParaTareas();
 
   tareasVisibles.forEach((tarea) => {
     const li = document.createElement('li');
@@ -392,24 +484,66 @@ function renderDibujos() {
 function renderContactos() {
   listaContactos.innerHTML = '';
 
-  if (contactos.length === 0) {
+  const aceptados = contactos.filter((contacto) => contacto.estado === 'aceptado');
+  const pendientes = contactos.filter((contacto) => contacto.estado === 'pendiente');
+
+  if (aceptados.length === 0 && pendientes.length === 0) {
     listaContactos.innerHTML = '<div class="tarea-vacia">Aún no agregaste contactos</div>';
     return;
   }
 
-  const ul = document.createElement('ul');
-  ul.className = 'lista-contactos-items';
+  const crearSeccion = (titulo, lista) => {
+    const bloque = document.createElement('div');
+    bloque.className = 'contactos-seccion';
+    const h4 = document.createElement('h4');
+    h4.textContent = titulo;
+    bloque.appendChild(h4);
+    const ul = document.createElement('ul');
+    ul.className = 'lista-contactos-items';
+    lista.forEach((contacto) => {
+      const li = document.createElement('li');
+      li.className = 'contacto-item';
+      const contenido = document.createElement('div');
+      contenido.className = 'contacto-info';
+      contenido.textContent = `${contacto.nombreContacto || contacto.emailContacto || 'Contacto'}${contacto.emailContacto ? ` · ${contacto.emailContacto}` : ''}${contacto.telefonoContacto ? ` · ${contacto.telefonoContacto}` : ''}`;
+      li.appendChild(contenido);
 
-  contactos.forEach((contacto) => {
-    const li = document.createElement('li');
-    li.className = 'contacto-item';
-    li.textContent = `${contacto.nombreContacto || contacto.emailContacto || 'Contacto'}${contacto.emailContacto ? ` · ${contacto.emailContacto}` : ''}${contacto.telefonoContacto ? ` · ${contacto.telefonoContacto}` : ''}`;
-    li.style.cursor = 'pointer';
-    li.addEventListener('click', () => abrirChatContacto(contacto));
-    ul.appendChild(li);
-  });
+      if (contacto.estado === 'aceptado') {
+        li.style.cursor = 'pointer';
+        li.addEventListener('click', () => abrirChatContacto(contacto));
+      } else {
+        const botones = document.createElement('div');
+        botones.className = 'contacto-acciones';
+        const btnAceptar = document.createElement('button');
+        btnAceptar.textContent = 'Aceptar';
+        btnAceptar.className = 'btn-aceptar';
+        btnAceptar.addEventListener('click', (event) => {
+          event.stopPropagation();
+          aceptarSolicitudContacto(contacto);
+        });
+        const btnRechazar = document.createElement('button');
+        btnRechazar.textContent = 'Rechazar';
+        btnRechazar.className = 'btn-rechazar';
+        btnRechazar.addEventListener('click', (event) => {
+          event.stopPropagation();
+          rechazarSolicitudContacto(contacto);
+        });
+        botones.appendChild(btnAceptar);
+        botones.appendChild(btnRechazar);
+        li.appendChild(botones);
+      }
+      ul.appendChild(li);
+    });
+    bloque.appendChild(ul);
+    return bloque;
+  };
 
-  listaContactos.appendChild(ul);
+  if (pendientes.length > 0) {
+    listaContactos.appendChild(crearSeccion('Solicitudes de contacto', pendientes));
+  }
+  if (aceptados.length > 0) {
+    listaContactos.appendChild(crearSeccion('Contactos', aceptados));
+  }
 }
 
 function renderMensajes(mensajes) {
@@ -537,6 +671,20 @@ async function agregarTarea() {
 
   inputTarea.value = '';
   inputTarea.focus();
+}
+
+async function aceptarSolicitudContacto(contacto) {
+  const docActual = doc(db, 'contactos', `${uidActual}_${contacto.uidContacto}`);
+  const docPareja = doc(db, 'contactos', `${contacto.uidContacto}_${uidActual}`);
+  await updateDoc(docActual, { estado: 'aceptado' });
+  await updateDoc(docPareja, { estado: 'aceptado' });
+}
+
+async function rechazarSolicitudContacto(contacto) {
+  const docActual = doc(db, 'contactos', `${uidActual}_${contacto.uidContacto}`);
+  const docPareja = doc(db, 'contactos', `${contacto.uidContacto}_${uidActual}`);
+  await updateDoc(docActual, { estado: 'rechazado' });
+  await updateDoc(docPareja, { estado: 'rechazado' });
 }
 
 function abrirModal(id, tipo) {
@@ -750,7 +898,7 @@ btnAgregarContacto.addEventListener('click', async function() {
 
   const yaExiste = contactos.some(c => c.uidContacto === contacto.id || c.emailContacto === email || c.telefonoContacto === telefono);
   if (yaExiste) {
-    alert('Ese contacto ya está agregado');
+    alert('Ese contacto ya está en proceso o ya fue agregado');
     return;
   }
 
@@ -760,6 +908,17 @@ btnAgregarContacto.addEventListener('click', async function() {
     nombreContacto: contacto.nombre || contacto.email,
     emailContacto: contacto.email || null,
     telefonoContacto: contacto.telefono || null,
+    estado: 'pendiente',
+    creado: serverTimestamp()
+  }, { merge: true });
+
+  await setDoc(doc(db, 'contactos', `${contacto.id}_${uidActual}`), {
+    uidUsuario: contacto.id,
+    uidContacto: uidActual,
+    nombreContacto: usuarioActual || 'Alguien',
+    emailContacto: auth.currentUser?.email || null,
+    telefonoContacto: null,
+    estado: 'pendiente',
     creado: serverTimestamp()
   }, { merge: true });
 
@@ -897,11 +1056,85 @@ document.getElementById('celebracion-overlay').addEventListener('click', functio
 
 function pedirPermisoNotificaciones() {
   if ('Notification' in window && Notification.permission === 'default') {
-    Notification.requestPermission();
+    Notification.requestPermission().then((permiso) => {
+      if (permiso === 'granted') {
+        console.log('Permiso de notificaciones concedido');
+      }
+    });
   }
 }
 
+function mostrarNotificacionLocal(titulo, opciones = {}) {
+  if (!('serviceWorker' in navigator) || !navigator.serviceWorker.ready) return;
+
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.showNotification(titulo, {
+      body: opciones.body || 'Tienes una tarea pendiente',
+      icon: '/icon-192.png',
+      tag: opciones.tag || 'tarea-notificacion'
+    });
+  });
+}
+
+let temporizadoresNotificaciones = [];
+
+function programarNotificacionTarea(tarea) {
+  if (!tarea || (!tarea.fecha && !tarea.hora)) return;
+
+  const ahora = new Date();
+  const fechaObjetivo = new Date();
+  const fechaTexto = tarea.fecha ? tarea.fecha : ahora.toISOString().split('T')[0];
+  const [anio, mes, dia] = fechaTexto.split('-').map(Number);
+  fechaObjetivo.setFullYear(anio, mes - 1, dia);
+
+  if (tarea.hora) {
+    const [horas, minutos] = tarea.hora.split(':').map(Number);
+    fechaObjetivo.setHours(horas, minutos, 0, 0);
+  } else {
+    fechaObjetivo.setHours(23, 59, 0, 0);
+  }
+
+  const demora = fechaObjetivo.getTime() - ahora.getTime();
+  if (demora <= 0) return;
+
+  const temporizador = setTimeout(() => {
+    if (!tarea.completada) {
+      mostrarNotificacionLocal('⏰ Recordatorio', { body: tarea.texto });
+    }
+  }, demora);
+
+  temporizadoresNotificaciones.push(temporizador);
+}
+
+function registrarNotificacionesParaTareas() {
+  temporizadoresNotificaciones.forEach((timer) => clearTimeout(timer));
+  temporizadoresNotificaciones = [];
+  tareas.filter((tarea) => !tarea.completada).forEach((tarea) => programarNotificacionTarea(tarea));
+}
+
+navItems.forEach((item) => {
+  item.addEventListener('click', () => {
+    navItems.forEach((nav) => nav.classList.remove('activo'));
+    tabPanels.forEach((panel) => panel.classList.remove('activo'));
+    item.classList.add('activo');
+    document.getElementById(`panel-${item.dataset.tab}`)?.classList.add('activo');
+  });
+});
+
+function actualizarNombresPerfil() {
+  const perfilNombre = document.getElementById('nombre-usuario-actual-perfil');
+  if (perfilNombre) perfilNombre.textContent = usuarioActual || 'Tu perfil';
+}
+
 document.getElementById('btn-cerrar-sesion').addEventListener('click', async function() {
+  await signOut(auth);
+  usuarioActual = '';
+  uidActual = '';
+  vinculoActivo = null;
+  mostrarAuth();
+});
+
+document.getElementById('btn-cerrar-sesion-perfil').addEventListener('click', async function() {
   await signOut(auth);
   usuarioActual = '';
   uidActual = '';
