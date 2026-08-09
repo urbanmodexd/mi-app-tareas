@@ -5,12 +5,14 @@ body {
   background: #EAF2FB;
   display: flex;
   justify-content: center;
+  min-height: 100dvh;
+  padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
 }
 
 .app {
-  width: 100%;
+  width: min(100%, 420px);
   max-width: 420px;
-  padding: 20px;
+  padding: 16px 14px calc(20px + env(safe-area-inset-bottom) + 76px);
 }
 
 /* Mascota */
@@ -82,10 +84,12 @@ body {
   display: flex;
   gap: 8px;
   margin-bottom: 14px;
+  flex-wrap: wrap;
 }
 
 .nueva-tarea input {
-  flex: 1;
+  flex: 1 1 220px;
+  min-width: 0;
   padding: 10px 12px;
   border: 1px solid #C9DDF2;
   border-radius: 10px;
@@ -106,6 +110,8 @@ body {
   padding: 10px 16px;
   font-size: 16px;
   cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .nueva-tarea button:hover { background: #1B4A8C; }
@@ -118,8 +124,9 @@ body {
   gap: 8px;
   margin: 0 0 14px;
   position: sticky;
-  bottom: 12px;
+  bottom: 8px;
   z-index: 20;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
 }
 
 .nav-item {
@@ -132,6 +139,8 @@ body {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .nav-item.activo {
@@ -167,6 +176,7 @@ body {
   padding: 10px 12px;
   background: #F7FAFD;
   border-radius: 10px;
+  flex-wrap: wrap;
 }
 
 .contacto-info {
@@ -185,6 +195,8 @@ body {
   padding: 6px 10px;
   font-size: 11px;
   cursor: pointer;
+  min-height: 36px;
+  min-width: 36px;
 }
 
 .btn-aceptar {
@@ -206,6 +218,91 @@ body {
 
 .perfil-stats {
   margin-top: 8px;
+}
+
+.chat-pareja-lista {
+  min-height: 180px;
+  max-height: 220px;
+  overflow: auto;
+  background: #F7FAFD;
+  border: 1px solid #EAF2FB;
+  border-radius: 12px;
+  padding: 10px;
+  margin-bottom: 10px;
+}
+
+.chat-pareja-burbuja-contenedor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.chat-pareja-burbuja {
+  max-width: 80%;
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.chat-pareja-burbuja.yo {
+  align-self: flex-end;
+  background: #2E6FBF;
+  color: white;
+}
+
+.chat-pareja-burbuja.pareja {
+  align-self: flex-start;
+  background: #EAF2FB;
+  color: #2B3A4A;
+}
+
+.reto-card {
+  background: #F7FAFD;
+  border: 1px solid #EAF2FB;
+  border-radius: 14px;
+  padding: 12px;
+  margin-bottom: 10px;
+}
+
+.reto-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #EAF2FB;
+  padding-bottom: 8px;
+  margin-bottom: 8px;
+}
+
+.reto-categoria {
+  color: white;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 999px;
+}
+
+.reto-estado {
+  font-size: 12px;
+  color: #5B7A9D;
+  text-transform: capitalize;
+}
+
+.reto-acciones {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #C9DDF2;
+  border-radius: 10px;
+  font-size: 14px;
+  background: #F7FAFD;
+  resize: vertical;
+  min-height: 84px;
 }
 
 .lista-tareas li {
@@ -292,8 +389,8 @@ body {
   background: none;
   border: 2px solid #C9DDF2;
   border-radius: 50%;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -320,9 +417,9 @@ body {
 .modal {
   background: white;
   border-radius: 18px;
-  padding: 24px;
-  width: 85%;
-  max-width: 320px;
+  padding: 20px;
+  width: min(92vw, 360px);
+  max-width: 360px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.2);
 }
 
@@ -357,7 +454,9 @@ body {
 
 .btn-primario, .btn-secundario {
   flex: 1;
-  padding: 10px;
+  min-height: 44px;
+  min-width: 44px;
+  padding: 10px 12px;
   border-radius: 10px;
   border: none;
   font-size: 14px;
@@ -377,7 +476,11 @@ body {
 .modal-overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  inset: 0;
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
+  padding: 16px;
   background: rgba(20, 40, 70, 0.45);
   align-items: center;
   justify-content: center;
@@ -392,7 +495,10 @@ body {
 .celebracion-overlay {
   display: none;
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  inset: 0;
+  width: 100%;
+  min-height: 100dvh;
+  height: 100dvh;
   background: rgba(27, 74, 140, 0.75);
   backdrop-filter: blur(4px);
   align-items: center;

@@ -20,6 +20,9 @@ let ctxDibujo = null;
 let modoRegistro = false;
 let chatContactoActivo = null;
 let chatUnsubscribe = null;
+let chatParejaUnsubscribe = null;
+let retosParejaUnsubscribe = null;
+let retosPareja = [];
 
 const inputTarea = document.getElementById('input-tarea');
 const btnAgregar = document.getElementById('btn-agregar');
@@ -73,6 +76,17 @@ const modalTitulo = document.getElementById('modal-titulo');
 const navItems = document.querySelectorAll('.nav-item');
 const tabPanels = document.querySelectorAll('.tab-panel');
 const campoFecha = document.getElementById('campo-fecha');
+const parejaVinculoMensaje = document.getElementById('pareja-vinculo-mensaje');
+const parejaChatContenido = document.getElementById('pareja-chat-contenido');
+const parejaRetosContenido = document.getElementById('pareja-retos-contenido');
+const chatParejaMensajes = document.getElementById('chat-pareja-mensajes');
+const inputMensajePareja = document.getElementById('input-mensaje-pareja');
+const btnEnviarMensajePareja = document.getElementById('btn-enviar-mensaje-pareja');
+const inputRetoTexto = document.getElementById('input-reto-texto');
+const selectCategoriaReto = document.getElementById('select-categoria-reto');
+const btnEnviarReto = document.getElementById('btn-enviar-reto');
+const listaRetosRecibidos = document.getElementById('lista-retos-recibidos');
+const listaRetosEnviados = document.getElementById('lista-retos-enviados');
 const modalFecha = document.getElementById('modal-fecha');
 const modalHora = document.getElementById('modal-hora');
 const modalGuardar = document.getElementById('modal-guardar');
@@ -84,6 +98,8 @@ const usuariosRef = collection(db, 'usuarios');
 const contactosRef = collection(db, 'contactos');
 const vinculosRef = collection(db, 'vinculos');
 const mensajesRef = collection(db, 'mensajes');
+const mensajesParejaRef = collection(db, 'mensajes_pareja');
+const retosParejaRef = collection(db, 'retos_pareja');
 
 // ===== AUTENTICACIÓN REAL =====
 function mostrarAuth() {
@@ -364,6 +380,9 @@ function iniciarApp() {
   document.getElementById('puntos-equipo-perfil').textContent = '0';
   pedirPermisoNotificaciones();
 
+  if (chatParejaUnsubscribe) chatParejaUnsubscribe();
+  if (retosParejaUnsubscribe) retosParejaUnsubscribe();
+
   const q = query(tareasRef, orderBy('creada', 'asc'));
   onSnapshot(q, (snapshot) => {
     tareas = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -394,6 +413,32 @@ function iniciarApp() {
     vinculoActivo = vinculo || null;
     renderVinculo();
     actualizarEstadisticasEquipo();
+
+    if (chatParejaUnsubscribe) chatParejaUnsubscribe();
+    if (retosParejaUnsubscribe) retosParejaUnsubscribe();
+
+    if (vinculoActivo?.estado === 'activo') {
+      const qMensajesPareja = query(mensajesParejaRef, orderBy('creado', 'asc'));
+      chatParejaUnsubscribe = onSnapshot(qMensajesPareja, (snapshotMensajes) => {
+        window.__mensajesPareja = snapshotMensajes.docs
+          .map((docu) => ({ id: docu.id, ...docu.data() }))
+          .filter((m) => m.equipoId === vinculoActivo.id);
+        renderChatPareja();
+      });
+
+      const qRetosPareja = query(retosParejaRef, orderBy('creado', 'asc'));
+      retosParejaUnsubscribe = onSnapshot(qRetosPareja, (snapshotRetos) => {
+        retosPareja = snapshotRetos.docs
+          .map((docu) => ({ id: docu.id, ...docu.data() }))
+          .filter((reto) => reto.equipoId === vinculoActivo.id);
+        renderRetosPareja();
+      });
+    } else {
+      window.__mensajesPareja = [];
+      retosPareja = [];
+      renderChatPareja();
+      renderRetosPareja();
+    }
   });
 }
 
@@ -624,7 +669,12 @@ async function enviarMensaje() {
 }
 
 function renderDestinatariosDibujo() {
-  selectDestinatarioDibujo.innerHTML = '<option value="">Para mí</option>';
+  selectDestinatarioDibujo.innerHTML = '';
+
+  const placeholder = document.createElement('option');
+  placeholder.value = '';
+  placeholder.textContent = 'Elige un contacto';
+  selectDestinatarioDibujo.appendChild(placeholder);
 
   if (uidActual) {
     const optionYo = document.createElement('option');
@@ -634,21 +684,185 @@ function renderDestinatariosDibujo() {
   }
 
   contactos.forEach((contacto) => {
+    if (!contacto.uidContacto) return;
     const option = document.createElement('option');
     option.value = contacto.uidContacto;
-    option.textContent = contacto.nombreContacto || contacto.emailContacto;
+    option.textContent = contacto.nombreContacto || contacto.emailContacto || 'Contacto';
     selectDestinatarioDibujo.appendChild(option);
   });
+}
+
+function renderChatPareja() {
+  if (!chatParejaMensajes) return;
+  chatParejaMensajes.innerHTML = '';
+
+  if (!vinculoActivo?.estado === 'activo' || !uidActual) {
+    chatParejaMensajes.innerHTML = '<div class="tarea-vacia">No hay mensajes aún</div>';
+    return;
+  }
+
+  const mensajes = (window.__mensajesPareja || []).slice().sort((a, b) => (a.creado?.seconds || 0) - (b.creado?.seconds || 0));
+
+  if (mensajes.length === 0) {
+    chatParejaMensajes.innerHTML = '<div class="tarea-vacia">Todavía no hay mensajes</div>';
+    return;
+  }
+
+  const contenedor = document.createElement('div');
+  contenedor.className = 'chat-pareja-burbuja-contenedor';
+
+  mensajes.forEach((mensaje) => {
+    const burbuja = document.createElement('div');
+    burbuja.className = mensaje.de === uidActual ? 'chat-pareja-burbuja yo' : 'chat-pareja-burbuja pareja';
+    burbuja.textContent = mensaje.texto;
+    contenedor.appendChild(burbuja);
+  });
+
+  chatParejaMensajes.appendChild(contenedor);
+}
+
+function renderRetosPareja() {
+  if (!listaRetosRecibidos || !listaRetosEnviados) return;
+  listaRetosRecibidos.innerHTML = '';
+  listaRetosEnviados.innerHTML = '';
+
+  const recibidos = retosPareja.filter((reto) => reto.para === uidActual);
+  const enviados = retosPareja.filter((reto) => reto.creadoPor === uidActual);
+
+  if (recibidos.length === 0) {
+    listaRetosRecibidos.innerHTML = '<div class="tarea-vacia">No tienes retos por responder</div>';
+  } else {
+    recibidos.forEach((reto) => listaRetosRecibidos.appendChild(crearTarjetaReto(reto, 'recibido')));
+  }
+
+  if (enviados.length === 0) {
+    listaRetosEnviados.innerHTML = '<div class="tarea-vacia">Aún no has enviado retos</div>';
+  } else {
+    enviados.forEach((reto) => listaRetosEnviados.appendChild(crearTarjetaReto(reto, 'enviado')));
+  }
+}
+
+function crearTarjetaReto(reto, tipo) {
+  const tarjeta = document.createElement('div');
+  tarjeta.className = 'reto-card';
+
+  const color = reto.categoria === 'Romántico' ? '#FF7AA2' : reto.categoria === 'Atrevido' ? '#8E6CE8' : '#2E6FBF';
+  tarjeta.innerHTML = `
+    <div class="reto-header" style="border-color:${color};">
+      <span class="reto-categoria" style="background:${color};">${reto.categoria || 'Divertido'}</span>
+      <span class="reto-estado">${reto.estado || 'pendiente'}</span>
+    </div>
+    <p>${reto.texto}</p>
+    <small>De: ${reto.creadoPor === uidActual ? 'tú' : 'tu pareja'}</small>
+  `;
+
+  const acciones = document.createElement('div');
+  acciones.className = 'reto-acciones';
+
+  if (tipo === 'recibido' && reto.estado === 'pendiente') {
+    const aceptar = document.createElement('button');
+    aceptar.className = 'btn-primario';
+    aceptar.textContent = 'Aceptar';
+    aceptar.addEventListener('click', () => aceptarReto(reto));
+    acciones.appendChild(aceptar);
+
+    const rechazar = document.createElement('button');
+    rechazar.className = 'btn-secundario';
+    rechazar.textContent = 'Rechazar';
+    rechazar.addEventListener('click', () => rechazarReto(reto));
+    acciones.appendChild(rechazar);
+  } else if (tipo === 'recibido' && reto.estado === 'aceptado') {
+    const completado = document.createElement('button');
+    completado.className = 'btn-primario';
+    completado.textContent = '¡Ya lo hice!';
+    completado.addEventListener('click', () => completarReto(reto));
+    acciones.appendChild(completado);
+  }
+
+  tarjeta.appendChild(acciones);
+  return tarjeta;
+}
+
+async function aceptarReto(reto) {
+  if (!vinculoActivo?.id) return;
+  await updateDoc(doc(db, 'retos_pareja', reto.id), { estado: 'aceptado' });
+}
+
+async function rechazarReto(reto) {
+  if (!vinculoActivo?.id) return;
+  await updateDoc(doc(db, 'retos_pareja', reto.id), { estado: 'rechazado' });
+}
+
+async function completarReto(reto) {
+  if (!vinculoActivo?.id) return;
+  const vinculoRef = doc(db, 'vinculos', vinculoActivo.id);
+  const vinculoDoc = await getDoc(vinculoRef);
+  if (!vinculoDoc.exists()) return;
+  const datos = vinculoDoc.data();
+  const confirmadoPor = Array.isArray(reto.confirmadoPor) ? reto.confirmadoPor : [];
+  if (!confirmadoPor.includes(uidActual)) {
+    confirmadoPor.push(uidActual);
+  }
+  const yaCompleto = confirmadoPor.includes(reto.creadoPor) && confirmadoPor.includes(reto.para);
+  await updateDoc(doc(db, 'retos_pareja', reto.id), {
+    estado: yaCompleto ? 'completado' : 'aceptado',
+    confirmadoPor
+  });
+  if (yaCompleto) {
+    await updateDoc(vinculoRef, {
+      puntos: (datos.puntos || 0) + 20,
+      racha: (datos.racha || 0) + 1
+    });
+    actualizarEstadisticasEquipo();
+  }
+}
+
+async function enviarMensajePareja() {
+  const texto = inputMensajePareja.value.trim();
+  if (!texto || !vinculoActivo?.id || !uidActual) return;
+  await addDoc(mensajesParejaRef, {
+    equipoId: vinculoActivo.id,
+    de: uidActual,
+    texto,
+    creado: serverTimestamp()
+  });
+  inputMensajePareja.value = '';
+}
+
+async function enviarRetoPareja() {
+  const texto = inputRetoTexto.value.trim();
+  const categoria = selectCategoriaReto.value;
+  if (!texto || !vinculoActivo?.id || !uidActual) return;
+
+  const otroUid = vinculoActivo.uidUsuario1 === uidActual ? vinculoActivo.uidUsuario2 : vinculoActivo.uidUsuario1;
+  await addDoc(retosParejaRef, {
+    equipoId: vinculoActivo.id,
+    texto,
+    categoria,
+    creadoPor: uidActual,
+    para: otroUid,
+    estado: 'pendiente',
+    creado: serverTimestamp(),
+    confirmadoPor: []
+  });
+  inputRetoTexto.value = '';
 }
 
 function renderVinculo() {
   if (!vinculoActivo) {
     estadoVinculo.textContent = 'Sin vínculo activo';
+    if (parejaVinculoMensaje) parejaVinculoMensaje.style.display = 'block';
+    if (parejaChatContenido) parejaChatContenido.style.display = 'none';
+    if (parejaRetosContenido) parejaRetosContenido.style.display = 'none';
     return;
   }
 
   const estadoTexto = vinculoActivo.estado === 'activo' ? 'Vínculo activo' : 'Pendiente de confirmación';
   estadoVinculo.textContent = `${estadoTexto} · ${vinculoActivo.codigo || ''}`.trim();
+
+  if (parejaVinculoMensaje) parejaVinculoMensaje.style.display = 'none';
+  if (parejaChatContenido) parejaChatContenido.style.display = vinculoActivo.estado === 'activo' ? 'block' : 'none';
+  if (parejaRetosContenido) parejaRetosContenido.style.display = vinculoActivo.estado === 'activo' ? 'block' : 'none';
 }
 
 async function agregarTarea() {
@@ -794,7 +1008,14 @@ function cerrarPreviewDibujo() {
 
 async function enviarDibujo() {
   const imagen = canvasDibujo.toDataURL('image/png');
-  const destinatario = selectDestinatarioDibujo.value || uidActual;
+  const destinatario = selectDestinatarioDibujo.value;
+
+  console.log('[dibujo] destinatario elegido:', destinatario);
+
+  if (!destinatario) {
+    alert('Elige un contacto para enviar el dibujo');
+    return;
+  }
 
   await addDoc(dibujosRef, {
     imagen,
@@ -971,6 +1192,11 @@ dibujoCancelar.addEventListener('click', cerrarDibujo);
 dibujoEnviar.addEventListener('click', enviarDibujo);
 chatCerrar.addEventListener('click', cerrarChatContacto);
 chatEnviar.addEventListener('click', enviarMensaje);
+btnEnviarMensajePareja.addEventListener('click', enviarMensajePareja);
+btnEnviarReto.addEventListener('click', enviarRetoPareja);
+inputMensajePareja.addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') enviarMensajePareja();
+});
 chatInput.addEventListener('keypress', function(e) {
   if (e.key === 'Enter') enviarMensaje();
 });

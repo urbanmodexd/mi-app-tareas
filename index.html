@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
   <title>Mi App Personal</title>
 
   <link rel="manifest" href="manifest.json">
@@ -58,6 +58,7 @@
       <button class="nav-item activo" data-tab="tareas">📝 Tareas</button>
       <button class="nav-item" data-tab="dibujos">🎨 Dibujos</button>
       <button class="nav-item" data-tab="contactos">👥 Contactos</button>
+      <button class="nav-item" data-tab="pareja">💞 Pareja</button>
       <button class="nav-item" data-tab="perfil">👤 Perfil</button>
     </nav>
 
@@ -106,6 +107,39 @@
           <div class="estado-vinculo" id="estado-vinculo">Sin vínculo activo</div>
         </div>
         <div class="lista-contactos" id="lista-contactos"></div>
+      </div>
+    </section>
+
+    <section class="tab-panel" id="panel-pareja">
+      <div class="bandeja">
+        <h2>💞 Pareja</h2>
+        <div id="pareja-vinculo-mensaje" class="tarea-vacia">Activa un vínculo de pareja para usar chat y retos.</div>
+
+        <div id="pareja-chat-contenido" style="display:none;">
+          <h3>💬 Chat</h3>
+          <div id="chat-pareja-mensajes" class="chat-pareja-lista"></div>
+          <div class="nueva-tarea">
+            <input type="text" id="input-mensaje-pareja" placeholder="Escribe algo para tu pareja">
+            <button id="btn-enviar-mensaje-pareja">Enviar</button>
+          </div>
+        </div>
+
+        <div id="pareja-retos-contenido" style="display:none; margin-top:16px;">
+          <h3>🎯 Crear reto</h3>
+          <textarea id="input-reto-texto" rows="3" placeholder="Escribe un reto o pregunta para tu pareja"></textarea>
+          <select id="select-categoria-reto" class="select-destinatario">
+            <option value="Divertido">Divertido</option>
+            <option value="Romántico">Romántico</option>
+            <option value="Atrevido">Atrevido</option>
+          </select>
+          <button id="btn-enviar-reto" class="btn-primario" style="margin-top:8px;">Enviar reto</button>
+
+          <h3 style="margin-top:16px;">📥 Retos para ti</h3>
+          <div id="lista-retos-recibidos" class="lista-retos"></div>
+
+          <h3 style="margin-top:16px;">📤 Retos que enviaste</h3>
+          <div id="lista-retos-enviados" class="lista-retos"></div>
+        </div>
       </div>
     </section>
 
