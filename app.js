@@ -4,7 +4,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore.js";
 import {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile,
-  GoogleAuthProvider, signInWithPopup, sendEmailVerification
+  GoogleAuthProvider, signInWithPopup, sendEmailVerification, sendPasswordResetEmail
 } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-auth.js";
 import { httpsCallable } from "https://www.gstatic.com/firebasejs/10.13.0/firebase-functions.js";
 
@@ -35,12 +35,6 @@ const selectorUsuario = document.getElementById('selector-usuario');
 const inputEmail = document.getElementById('input-email');
 const inputPassword = document.getElementById('input-password');
 const inputNombreRegistro = document.getElementById('input-nombre-registro');
-const recuperacionContainer = document.getElementById('recuperacion-container');
-const inputEmailRecuperacion = document.getElementById('input-email-recuperacion');
-const inputCodigoRecuperacion = document.getElementById('input-codigo-recuperacion');
-const inputNuevaPassword = document.getElementById('input-nueva-password');
-const btnEnviarCodigoRecuperacion = document.getElementById('btn-enviar-codigo-recuperacion');
-const btnConfirmarRecuperacion = document.getElementById('btn-confirmar-recuperacion');
 const inputTelefonoRegistro = document.getElementById('input-telefono-registro');
 const btnGuardarNombre = document.getElementById('btn-guardar-nombre');
 const btnGoogle = document.getElementById('btn-google');
@@ -363,11 +357,6 @@ async function guardarNombreUsuario() {
   }
 }
 
-function mostrarRecuperacion() {
-  recuperacionContainer.style.display = 'block';
-  inputEmailRecuperacion.value = inputEmail.value.trim();
-}
-
 function mostrarCelebracionReto(puntos) {
   const overlay = document.getElementById('celebracion-nube-overlay');
   const nube = document.getElementById('nube-celebracion');
@@ -375,78 +364,6 @@ function mostrarCelebracionReto(puntos) {
   nube.textContent = `¡Reto cumplido! +${puntos} puntos`;
   overlay.classList.add('activo');
   setTimeout(() => overlay.classList.remove('activo'), 1800);
-}
-
-function ocultarRecuperacion() {
-  recuperacionContainer.style.display = 'none';
-  inputEmailRecuperacion.value = '';
-  inputCodigoRecuperacion.value = '';
-  inputNuevaPassword.value = '';
-}
-
-async function enviarCodigoRecuperacion() {
-  const correo = inputEmailRecuperacion.value.trim() || inputEmail.value.trim();
-  if (!correo || !esEmailValido(correo)) {
-    alert('Ingresa un correo electrónico válido');
-    return;
-  }
-
-  try {
-    const codigo = Math.floor(100000 + Math.random() * 900000).toString();
-    const expiracion = new Date(Date.now() + 15 * 60 * 1000);
-    await addDoc(collection(db, 'codigos_recuperacion'), {
-      email: correo.toLowerCase(),
-      codigo,
-      expiracion: expiracion,
-      usado: false,
-      creado: serverTimestamp()
-    });
-
-    try {
-      const enviarEmail = httpsCallable(functions, 'enviarCodigoRecuperacion');
-      await enviarEmail({ email: correo, codigo });
-    } catch (emailError) {
-      console.warn('No se pudo enviar el correo con la Cloud Function:', emailError);
-      alert('Código generado localmente. Para enviar correos reales necesitas una Cloud Function o un servicio como EmailJS.');
-    }
-
-    alert('Se generó un código de recuperación. Revisa la consola o el correo si la función de envío está activa.');
-  } catch (error) {
-    alert(error.message || 'No se pudo generar el código');
-  }
-}
-
-async function confirmarRecuperacion() {
-  const correo = inputEmailRecuperacion.value.trim() || inputEmail.value.trim();
-  const codigo = inputCodigoRecuperacion.value.trim();
-  const nuevaPassword = inputNuevaPassword.value.trim();
-
-  if (!correo || !codigo || !nuevaPassword) {
-    alert('Completa el correo, el código y la nueva contraseña');
-    return;
-  }
-
-  try {
-    const q = query(collection(db, 'codigos_recuperacion'), where('email', '==', correo.toLowerCase()), where('usado', '==', false));
-    const resultado = await getDocs(q);
-    const codigoValido = resultado.docs.find(docu => {
-      const data = docu.data();
-      return data.codigo === codigo && new Date(data.expiracion?.toDate?.() || data.expiracion) > new Date();
-    });
-
-    if (!codigoValido) {
-      alert('El código es inválido o ya expiró');
-      return;
-    }
-
-    await updateDoc(doc(db, 'codigos_recuperacion', codigoValido.id), { usado: true });
-    const enviarPassword = httpsCallable(functions, 'cambiarPasswordConCodigo');
-    await enviarPassword({ email: correo.toLowerCase(), codigo, nuevaPassword });
-    alert('Contraseña actualizada correctamente');
-    ocultarRecuperacion();
-  } catch (error) {
-    alert(error.message || 'No se pudo actualizar la contraseña');
-  }
 }
 
 async function recuperarPassword() {
@@ -461,7 +378,12 @@ async function recuperarPassword() {
     return;
   }
 
-  mostrarRecuperacion();
+  try {
+    await sendPasswordResetEmail(auth, correo);
+    alert('Te enviamos un correo con un enlace para restablecer tu contraseña. Revisa tu bandeja de entrada (y spam).');
+  } catch (error) {
+    alert(error.message || 'No se pudo enviar el correo de recuperación');
+  }
 }
 
 async function loginConGoogle() {
@@ -482,8 +404,6 @@ async function loginConGoogle() {
 btnGuardarNombre.addEventListener('click', guardarNombreUsuario);
 btnGoogle.addEventListener('click', loginConGoogle);
 linkRecuperarPassword.addEventListener('click', recuperarPassword);
-btnEnviarCodigoRecuperacion.addEventListener('click', enviarCodigoRecuperacion);
-btnConfirmarRecuperacion.addEventListener('click', confirmarRecuperacion);
 perfilGuardarBtn.addEventListener('click', guardarPerfilEditable);
 perfilEditarBtn.addEventListener('click', activarModoEdicionPerfil);
 inputPassword.addEventListener('keypress', function(e) {
@@ -1329,41 +1249,69 @@ btnAgregarContacto.addEventListener('click', async function() {
 btnVincularPareja.addEventListener('click', async function() {
   if (!uidActual) return;
 
-  const codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
-  await addDoc(vinculosRef, {
-    codigo,
-    uidUsuario1: uidActual,
-    uidUsuario2: null,
-    estado: 'pendiente',
-    racha: 0,
-    puntos: 0,
-    creado: serverTimestamp()
-  });
-  estadoVinculo.textContent = `Código generado: ${codigo}`;
+  try {
+    let codigo;
+    let intentos = 0;
+    let disponible = false;
+
+    while (!disponible && intentos < 5) {
+      codigo = Math.random().toString(36).substring(2, 8).toUpperCase();
+      const qExiste = query(vinculosRef, where('codigo', '==', codigo));
+      const resultadoExiste = await getDocs(qExiste);
+      disponible = resultadoExiste.empty;
+      intentos++;
+    }
+
+    if (!disponible) {
+      alert('No se pudo generar un código único, intenta de nuevo');
+      return;
+    }
+
+    await addDoc(vinculosRef, {
+      codigo,
+      uidUsuario1: uidActual,
+      uidUsuario2: null,
+      estado: 'pendiente',
+      racha: 0,
+      puntos: 0,
+      creado: serverTimestamp()
+    });
+
+    estadoVinculo.textContent = `Código generado: ${codigo}`;
+  } catch (error) {
+    console.error('Error al generar vínculo:', error);
+    alert('No se pudo generar el código: ' + (error.message || 'error desconocido'));
+  }
 });
 
 btnAceptarVinculo.addEventListener('click', async function() {
   const codigo = inputCodigoVinculo.value.trim().toUpperCase();
   if (!codigo || !uidActual) return;
 
-  const q = query(vinculosRef);
-  const resultado = await getDocs(q);
-  const vinculo = resultado.docs.find(d => d.data().codigo === codigo && d.data().estado === 'pendiente');
+  try {
+    const q = query(vinculosRef, where('codigo', '==', codigo), where('estado', '==', 'pendiente'));
+    const resultado = await getDocs(q);
 
-  if (!vinculo) {
-    alert('Código no válido');
-    return;
+    if (resultado.empty) {
+      alert('Código no válido o ya fue usado');
+      return;
+    }
+
+    const vinculo = resultado.docs[0];
+
+    await updateDoc(doc(db, 'vinculos', vinculo.id), {
+      uidUsuario2: uidActual,
+      estado: 'activo',
+      racha: vinculo.data().racha || 0,
+      puntos: vinculo.data().puntos || 0
+    });
+
+    inputCodigoVinculo.value = '';
+    estadoVinculo.textContent = 'Vínculo activo';
+  } catch (error) {
+    console.error('Error al aceptar vínculo:', error);
+    alert('No se pudo vincular: ' + (error.message || 'error desconocido'));
   }
-
-  await updateDoc(doc(db, 'vinculos', vinculo.id), {
-    uidUsuario2: uidActual,
-    estado: 'activo',
-    racha: vinculo.data().racha || 0,
-    puntos: vinculo.data().puntos || 0
-  });
-
-  inputCodigoVinculo.value = '';
-  estadoVinculo.textContent = 'Vínculo activo';
 });
 
 btnAbrirDibujo.addEventListener('click', abrirDibujo);
